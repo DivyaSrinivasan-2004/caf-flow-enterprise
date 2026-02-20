@@ -5,32 +5,80 @@ import { isAdminRole } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Coffee } from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const { setUser } = useAuth();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+ 
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    const success = login(email, password);
-    if (success) {
-      const stored = { 'admin@cafeflow.com': 'SUPER_ADMIN', 'manager@cafeflow.com': 'MANAGER', 'accountant@cafeflow.com': 'ACCOUNTANT', 'staff@cafeflow.com': 'STAFF' };
-      const role = stored[email as keyof typeof stored];
-      if (role === 'STAFF') navigate('/staff');
-      else navigate('/admin');
-    } else {
-      setError('Invalid credentials. Try admin@cafeflow.com / admin123');
-    }
-  };
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
 
+  try {
+    // 1️⃣ First: Get user role
+    const loginResponse = await fetch(
+      'http://192.168.1.3:8000/api/accounts/login/',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      }
+    );
+
+    const loginData = await loginResponse.json();
+
+    if (!loginResponse.ok) {
+      throw new Error(loginData.detail || 'Invalid credentials');
+    }
+
+    // 2️⃣ Second: Get JWT tokens
+    const tokenResponse = await fetch(
+      'http://192.168.1.3:8000/api/accounts/token/',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      }
+    );
+
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenResponse.ok) {
+      throw new Error('Token generation failed');
+    }
+
+    // 3️⃣ Store everything
+    const storage = remember ? localStorage : sessionStorage;
+
+ // Store everything
+localStorage.setItem('access', tokenData.access);
+localStorage.setItem('refresh', tokenData.refresh);
+localStorage.setItem('user', JSON.stringify(loginData));
+
+// 🔥 VERY IMPORTANT
+setUser(loginData);
+
+// Redirect
+const role = loginData.role?.toUpperCase().trim();
+if (role === 'STAFF') {
+  navigate('/staff', { replace: true });
+} else {
+  navigate('/admin', { replace: true });
+}
+  } catch (err: any) {
+    setError(err.message || 'Login failed');
+  }
+};
   return (
-    <div className="min-h-screen flex">
+<div className="min-h-screen flex bg-gradient-to-br from-[#7C5CFF] via-[#BFA6FF] to-[#FFFFFF]">
+
       {/* Left - Gradient Panel */}
-      <div className="hidden lg:flex lg:w-1/2 gradient-hero relative overflow-hidden items-center justify-center">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center bg-transparent">
+
         <div className="absolute inset-0 opacity-20">
           {[...Array(6)].map((_, i) => (
             <div
@@ -62,7 +110,9 @@ const Login = () => {
       </div>
 
       {/* Right - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-[48px] bg-background">
+     <div className="flex-1 flex items-center justify-center p-[48px] bg-transparent">
+
+
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-[8px] mb-[40px]">
             <div className="w-[40px] h-[40px] rounded-lg gradient-primary flex items-center justify-center">
@@ -76,17 +126,19 @@ const Login = () => {
             <p className="text-sm text-muted-foreground mb-[32px]">Sign in to your account to continue</p>
 
             <form onSubmit={handleSubmit} className="space-y-[24px]">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-[8px]">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@cafeflow.com"
-                  className="w-full px-[16px] py-[12px] rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm transition-all"
-                  required
-                />
-              </div>
+             <div>
+  <label className="block text-sm font-medium text-foreground mb-[8px]">
+    Username
+  </label>
+  <input
+    type="text"
+    value={username}
+    onChange={e => setUsername(e.target.value)}
+    placeholder="Enter your username"
+    className="w-full px-[16px] py-[12px] rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm transition-all"
+    required
+  />
+</div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-[8px]">Password</label>
@@ -119,7 +171,7 @@ const Login = () => {
                   />
                   <span className="text-sm text-muted-foreground">Remember me</span>
                 </label>
-                <a href="#" className="text-sm text-primary font-medium hover:underline">Forgot password?</a>
+                
               </div>
 
               {error && (
@@ -142,13 +194,7 @@ const Login = () => {
               </p>
             </div>
 
-            <div className="mt-[24px] p-[16px] rounded-md bg-accent">
-              <p className="text-xs font-medium text-accent-foreground mb-[8px]">Demo Accounts</p>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>Admin: admin@cafeflow.com / admin123</p>
-                <p>Staff: staff@cafeflow.com / staff123</p>
-              </div>
-            </div>
+            
           </div>
         </div>
       </div>

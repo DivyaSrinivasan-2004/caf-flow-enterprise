@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+
+import { createContext, useContext, useState, useEffect } from "react";
 
 type Role = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'ACCOUNTANT' | 'STAFF';
 
@@ -9,12 +10,12 @@ interface User {
 }
 
 interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => boolean;
+  user: any;
+  setUser: React.Dispatch<React.SetStateAction<any>>;
   logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const DEMO_USERS: Record<string, { password: string; name: string; role: Role }> = {
   'admin@cafeflow.com': { password: 'admin123', name: 'Sarah Mitchell', role: 'SUPER_ADMIN' },
@@ -22,32 +23,35 @@ const DEMO_USERS: Record<string, { password: string; name: string; role: Role }>
   'staff@cafeflow.com': { password: 'staff123', name: 'Alex Rivera', role: 'STAFF' },
   'accountant@cafeflow.com': { password: 'acc123', name: 'Priya Shah', role: 'ACCOUNTANT' },
 };
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<any>(null);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-
-  const login = (email: string, password: string): boolean => {
-    const found = DEMO_USERS[email];
-    if (found && found.password === password) {
-      setUser({ email, name: found.name, role: found.role });
-      return true;
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
-    return false;
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('access');
+    localStorage.removeItem('refresh');
+    setUser(null);
   };
 
-  const logout = () => setUser(null);
-
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
 };
 
 export const isAdminRole = (role: Role) => ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT'].includes(role);
