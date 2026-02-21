@@ -1,6 +1,17 @@
 import StatusBadge from '@/components/StatusBadge';
-import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import {  Filter, Download, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { motion } from "framer-motion";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+} from "recharts";
+import { AreaChart, Area } from "recharts";
 
 const invoices = [
   { id: 'INV-001', customer: 'John Smith', date: '2026-02-15', due: '2026-03-15', amount: '$1,250.00', status: 'paid' as const },
@@ -16,54 +27,236 @@ const invoices = [
 const Invoices = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-
+  const [daysFilter, setDaysFilter] = useState("30");
   const filtered = invoices.filter(inv => {
-    const matchSearch = inv.customer.toLowerCase().includes(search.toLowerCase()) || inv.id.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || inv.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const matchSearch =
+    inv.customer.toLowerCase().includes(search.toLowerCase()) ||
+    inv.id.toLowerCase().includes(search.toLowerCase());
+
+  const matchStatus =
+    statusFilter === "all" || inv.status === statusFilter;
+
+  // 🔥 DATE FILTER LOGIC
+  const invoiceDate = new Date(inv.date);
+  const today = new Date();
+  const pastDate = new Date();
+
+  pastDate.setDate(today.getDate() - Number(daysFilter));
+
+  const matchDate = invoiceDate >= pastDate;
+
+  return matchSearch && matchStatus && matchDate;
+});
+  // 🔥 SUMMARY CALCULATIONS
+const totalRevenue = invoices
+  .filter(inv => inv.status === 'paid')
+  .reduce((acc, inv) => acc + Number(inv.amount.replace(/[$,]/g, '')), 0);
+
+const pendingAmount = invoices
+  .filter(inv => inv.status === 'pending')
+  .reduce((acc, inv) => acc + Number(inv.amount.replace(/[$,]/g, '')), 0);
+
+const overdueAmount = invoices
+  .filter(inv => inv.status === 'overdue')
+  .reduce((acc, inv) => acc + Number(inv.amount.replace(/[$,]/g, '')), 0);
+
+const totalInvoices = invoices.length;
+// 🔥 Sparkline dummy data
+const sparkData = [
+  { value: 400 },
+  { value: 600 },
+  { value: 500 },
+  { value: 800 },
+  { value: 700 },
+  { value: 900 },
+];
+
+// 🔥 Payment breakdown
+const paymentData = [
+  { name: "Cash", value: 35 },
+  { name: "Card", value: 45 },
+  { name: "UPI", value: 20 },
+];
+
+const COLORS = ["#8b5cf6", "#a78bfa", "#c4b5fd"];
 
   return (
+    
     <div className="space-y-[24px] animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
           <p className="text-sm text-muted-foreground">Manage and track all invoices</p>
         </div>
-        <button className="px-[16px] py-[10px] rounded-md gradient-primary text-primary-foreground text-sm font-semibold flex items-center gap-[8px] shadow-glow hover:opacity-90 transition-all">
-          <Plus className="w-4 h-4" /> Create Invoice
-        </button>
+        
       </div>
+      {/* 🔥 FINANCIAL SUMMARY */}
+{/* 🔥 PREMIUM FINANCIAL SUMMARY */}
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[20px]">
 
+  {[ 
+    { title: "Total Revenue", value: totalRevenue, color: "text-primary" },
+    { title: "Pending Amount", value: pendingAmount, color: "text-yellow-500" },
+    { title: "Overdue", value: overdueAmount, color: "text-red-500" },
+    { title: "Total Invoices", value: totalInvoices, color: "text-primary" },
+  ].map((card, i) => (
+    <motion.div
+      key={i}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.1 }}
+      className="relative bg-card border border-border rounded-xl p-[18px] shadow-soft overflow-hidden group"
+    >
+      {/* Gradient Glow */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none" />
+
+      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+        {card.title}
+      </p>
+
+      {/* Animated Counter */}
+      <motion.h3
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={`text-2xl font-bold mt-[6px] ${card.color}`}
+      >
+        {typeof card.value === "number"
+          ? `$${card.value.toLocaleString()}`
+          : card.value}
+      </motion.h3>
+
+      {/* Mini Sparkline */}
+      <div className="mt-[12px] h-[50px]">
+  <ResponsiveContainer width="100%" height="100%">
+    <AreaChart data={sparkData}>
+      <defs>
+        <linearGradient id="colorSpark" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+        </linearGradient>
+      </defs>
+
+      <Area
+        type="monotone"
+        dataKey="value"
+        stroke="#8b5cf6"
+        strokeWidth={2}
+        fill="url(#colorSpark)"
+      />
+    </AreaChart>
+  </ResponsiveContainer>
+</div>
+    </motion.div>
+  ))}
+
+</div>
+{/* 🔥 PAYMENT BREAKDOWN */}
+<div className="bg-card border border-border rounded-xl p-[24px] shadow-soft mt-[20px]">
+  <div className="flex items-center justify-between mb-[20px]">
+    <h3 className="text-sm font-semibold text-foreground">
+      Payment Method Breakdown
+    </h3>
+  </div>
+
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-[30px] items-center">
+
+    {/* DONUT */}
+    <div className="h-[260px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={paymentData}
+            cx="50%"
+            cy="50%"
+            innerRadius={80}
+            outerRadius={110}
+            dataKey="value"
+            paddingAngle={5}
+          >
+            {paymentData.map((entry, index) => (
+              <Cell key={index} fill={COLORS[index]} />
+            ))}
+          </Pie>
+          <Tooltip />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+
+    {/* RIGHT SIDE STATS */}
+    <div className="space-y-[18px]">
+      {paymentData.map((p, i) => (
+        <div key={i} className="flex items-center justify-between bg-secondary/40 px-[16px] py-[12px] rounded-lg">
+          <div className="flex items-center gap-[10px]">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ background: COLORS[i] }}
+            />
+            <span className="text-sm font-medium">{p.name}</span>
+          </div>
+          <span className="text-sm font-semibold">
+            {p.value}%
+          </span>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</div>
       {/* Filters */}
-      <div className="flex flex-wrap gap-[12px] items-center">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-[12px] top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search invoices..."
-            className="w-full pl-[36px] pr-[16px] py-[10px] rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <div className="flex gap-[8px]">
-          {['all', 'paid', 'pending', 'overdue', 'cancelled'].map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-[12px] py-[8px] rounded-md text-xs font-medium capitalize transition-colors ${
-                statusFilter === s ? 'gradient-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-        <button className="px-[12px] py-[8px] rounded-md border border-input text-sm text-muted-foreground hover:bg-accent flex items-center gap-[6px]">
-          <Download className="w-4 h-4" /> Export
-        </button>
-      </div>
+   {/* Filters */}
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[16px]">
 
+  {/* LEFT SIDE — SEARCH */}
+  <div className="flex items-center gap-[12px] w-full sm:max-w-xl">
+
+  {/* SEARCH */}
+  <div className="relative flex-1">
+    <input
+      value={search}
+      onChange={e => setSearch(e.target.value)}
+      placeholder="Search invoices..."
+      className="w-full pl-[16px] pr-[16px] py-[10px] rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+    />
+  </div>
+
+  {/* DAYS FILTER */}
+  <select
+    value={daysFilter}
+    onChange={(e) => setDaysFilter(e.target.value)}
+    className="px-[12px] py-[10px] rounded-md border border-input bg-background text-sm"
+  >
+    <option value="7">Last 7 Days</option>
+    <option value="30">Last 30 Days</option>
+    <option value="90">Last 90 Days</option>
+    <option value="365">Last 1 Year</option>
+  </select>
+
+</div>
+
+  {/* RIGHT SIDE — FILTERS + EXPORT */}
+  <div className="flex flex-wrap items-center gap-[8px]">
+
+    {['all', 'paid', 'pending', 'overdue', 'cancelled'].map(s => (
+      <button
+        key={s}
+        onClick={() => setStatusFilter(s)}
+        className={`px-[12px] py-[8px] rounded-md text-xs font-medium capitalize transition-all ${
+          statusFilter === s
+            ? 'gradient-primary text-primary-foreground shadow-glow'
+            : 'bg-secondary text-secondary-foreground hover:bg-accent'
+        }`}
+      >
+        {s}
+      </button>
+    ))}
+
+    <button className="px-[12px] py-[8px] rounded-md border border-input text-sm text-muted-foreground hover:bg-accent flex items-center gap-[6px]">
+      <Download className="w-4 h-4" /> Export
+    </button>
+
+  </div>
+
+</div>
       {/* Table */}
       <div className="bg-card rounded-lg shadow-soft border border-border overflow-hidden">
         <div className="overflow-x-auto">

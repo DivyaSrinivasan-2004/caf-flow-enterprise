@@ -147,7 +147,6 @@ const Inventory = () => {
       {/* SEARCH + ADD */}
       <div className="flex justify-between items-center">
         <div className="relative max-w-sm">
-          <Search className="absolute left-[12px] top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
