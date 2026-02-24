@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import dishImages from "@/lib/dishImages";
 import FormModal from "./FormModal";
 import { BookOpen } from "lucide-react";
-
+import { useEffect } from "react";
 interface Product {
   id: number;
   name: string;
@@ -14,24 +14,14 @@ interface Product {
   gst: number;
   available: boolean;
 }
+const API_BASE = "http://192.168.1.3:8000";
 
-const mockProducts: Product[] = [
-  { id: 1, name: "Cappuccino", category: "Coffee", price: 180, gst: 5, available: true },
-  { id: 2, name: "Latte", category: "Coffee", price: 200, gst: 5, available: true },
-  { id: 3, name: "Green Tea", category: "Tea", price: 120, gst: 5, available: true },
-  { id: 4, name: "Chocolate Cake", category: "Desserts", price: 250, gst: 12, available: false },
-  { id: 5, name: "Croissant", category: "Snacks", price: 150, gst: 5, available: true },
-  { id: 6, name: "Espresso", category: "Coffee", price: 150, gst: 5, available: true },
-  { id: 7, name: "Masala Chai", category: "Tea", price: 80, gst: 5, available: true },
-  { id: 8, name: "Mango Smoothie", category: "Juice", price: 220, gst: 12, available: true },
-];
-
-const categories = ["All", "Coffee", "Tea", "Snacks", "Desserts", "Juice"];
 
 const AdminProducts = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
-  const [products, setProducts] = useState(mockProducts);
+const [products, setProducts] = useState<Product[]>([]);
+const [categories, setCategories] = useState<string[]>(["All"]);
 
   const [showProductModal, setShowProductModal] = useState(false);
 const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -50,6 +40,68 @@ const handleIngredientChange = (
   updated[index][field] = value;
   setIngredients(updated);
 };
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("access"); // or "token"
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+};
+const fetchProducts = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/products/products/`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+      console.error("Unauthorized or error:", res.status);
+      return;
+    }
+
+    const data = await res.json();
+
+    if (!Array.isArray(data)) {
+      console.error("Unexpected response:", data);
+      return;
+    }
+
+    const formatted = data.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+    category: item.category || "",
+      price: item.price,
+      gst: item.gst,
+      available: item.available,
+    }));
+
+    setProducts(formatted);
+  } catch (err) {
+    console.error("Error fetching products:", err);
+  }
+};
+const fetchCategories = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/products/categories/`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) return;
+
+    const data = await res.json();
+
+    if (!Array.isArray(data)) return;
+
+    const names = data.map((cat: any) => cat.name);
+    setCategories(["All", ...names]);
+  } catch (err) {
+    console.error("Error fetching categories:", err);
+  }
+};
+
+useEffect(() => {
+  fetchProducts();
+  fetchCategories();
+}, []);
 
 const addIngredientRow = () => {
   setIngredients([...ingredients, { name: "", quantity: "" }]);
@@ -59,10 +111,23 @@ const addIngredientRow = () => {
     const matchCategory = activeCategory === "All" || p.category === activeCategory;
     return matchSearch && matchCategory;
   });
+const toggleAvailability = async (id: number) => {
+  const product = products.find((p) => p.id === id);
+  if (!product) return;
 
-  const toggleAvailability = (id: number) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, available: !p.available } : p)));
-  };
+  try {
+    await fetch(`${API_BASE}/api/products/products/${id}/`, {
+      method: "PATCH",
+     headers: getAuthHeaders(),
+      body: JSON.stringify({ available: !product.available }),
+    });
+
+    fetchProducts();
+  } catch (err) {
+    console.error("Toggle failed:", err);
+  }
+};
+  
 
   return (
   <div className="w-full py-8">
@@ -240,7 +305,10 @@ const addIngredientRow = () => {
                       }}>
                       <Edit2 className="w-3 h-4 text-muted-foreground" />
                     </button>
-                    <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-destructive/10 transition-colors" onClick={() => setShowDeleteModal(true)}>
+                    <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-destructive/10 transition-colors" onClick={() => {
+  setEditProduct(product);
+  setShowDeleteModal(true);
+}}>
                       <Trash2 className="w-3 h-4 text-destructive" />
                     </button>
                   </div>
@@ -308,9 +376,54 @@ const addIngredientRow = () => {
       <input type="file" className="w-full mt-1 text-sm" />
     </div>
 
-    <button className="w-full py-3 rounded-xl gradient-primary text-white font-semibold shadow-glow">
-      {editProduct ? "Update Product" : "Add Product"}
-    </button>
+   <button
+  onClick={async () => {
+  const inputs = document.querySelectorAll(
+    ".space-y-4 input, .space-y-4 select"
+  ) as NodeListOf<HTMLInputElement | HTMLSelectElement>;
+
+  const name = inputs[0]?.value;
+  const category = (inputs[1] as HTMLSelectElement)?.value;
+  const price = inputs[2]?.value;
+  const gst = inputs[3]?.value;
+  const image = (inputs[4] as HTMLInputElement)?.files?.[0];
+
+  const formData = new FormData();
+  formData.append("name", name);
+  formData.append("category", category);
+  formData.append("price", price);
+  formData.append("gst", gst);
+  formData.append("available", "true");
+
+  if (image) {
+    formData.append("image", image);
+  }
+
+  try {
+    const url = editProduct
+      ? `${API_BASE}/api/products/products/${editProduct.id}/`
+      : `${API_BASE}/api/products/products/`;
+
+    await fetch(url, {
+      method: editProduct ? "PUT" : "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access")}`,
+        // ❌ DO NOT ADD Content-Type here
+      },
+      body: formData,
+    });
+
+    fetchProducts();
+    setShowProductModal(false);
+    setEditProduct(null);
+  } catch (err) {
+    console.error("Error saving product:", err);
+  }
+}}
+  className="w-full py-3 rounded-xl gradient-primary text-white font-semibold shadow-glow"
+>
+  {editProduct ? "Update Product" : "Add Product"}
+</button>
 
   </div>
 </FormModal>
@@ -333,9 +446,26 @@ const addIngredientRow = () => {
         Cancel
       </button>
 
-      <button className="px-4 py-2 rounded-lg bg-destructive text-white">
-        Delete
-      </button>
+    <button
+  onClick={async () => {
+    if (!editProduct) return;
+
+    try {
+      await fetch(`${API_BASE}/api/products/products/${editProduct.id}/`, {
+        method: "DELETE",
+      });
+
+      fetchProducts();
+      setShowDeleteModal(false);
+      setEditProduct(null);
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+  }}
+  className="px-4 py-2 rounded-lg bg-destructive text-white"
+>
+  Delete
+</button>
     </div>
   </div>
 </FormModal>
@@ -351,9 +481,32 @@ const addIngredientRow = () => {
       <input className="w-full mt-1 px-4 py-2.5 rounded-xl border border-border bg-secondary/40" />
     </div>
 
-    <button className="w-full py-3 rounded-xl gradient-primary text-white font-semibold shadow-glow">
-      Save Category
-    </button>
+  <button
+  onClick={async () => {
+    const input = document.querySelector(
+      '.space-y-4 input'
+    ) as HTMLInputElement;
+
+    if (!input?.value) return;
+
+    try {
+      await fetch(`${API_BASE}/api/products/categories/`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name: input.value }),
+      });
+
+      fetchCategories();
+      setShowCategoryModal(false);
+      input.value = "";
+    } catch (err) {
+      console.error("Category save error:", err);
+    }
+  }}
+  className="w-full py-3 rounded-xl gradient-primary text-white font-semibold shadow-glow"
+>
+  Save Category
+</button>
   </div>
 </FormModal>
 <FormModal
@@ -395,9 +548,30 @@ const addIngredientRow = () => {
       + Add Ingredient
     </button>
 
-    <button className="w-full py-3 rounded-xl gradient-primary text-white font-semibold shadow-glow">
-      Save Recipe
-    </button>
+ <button
+  onClick={async () => {
+    if (!editProduct) return;
+
+    try {
+      await fetch(`${API_BASE}/api/products/recipes/`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          product: editProduct.id,
+          ingredients,
+        }),
+      });
+
+      setShowRecipeModal(false);
+      setIngredients([{ name: "", quantity: "" }]);
+    } catch (err) {
+      console.error("Recipe save error:", err);
+    }
+  }}
+  className="w-full py-3 rounded-xl gradient-primary text-white font-semibold shadow-glow"
+>
+  Save Recipe
+</button>
 
   </div>
 </FormModal>

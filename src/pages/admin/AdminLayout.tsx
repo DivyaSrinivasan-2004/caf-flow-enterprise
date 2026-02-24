@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Coffee, Bell, LogOut, ChevronDown, User } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-
+  
 interface NavItem {
   label: string;
   path: string;
