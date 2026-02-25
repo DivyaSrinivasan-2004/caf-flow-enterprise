@@ -1,107 +1,140 @@
-import StatusBadge from '@/components/StatusBadge';
-import { Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import StatusBadge from "@/components/StatusBadge";
+import {
+  BadgeIndianRupee,
+  CheckCircle2,
+  FileText,
+  
+  ShoppingBag,
+  Wallet,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const BASE_URL = "http://192.168.1.3:8000";
+
+interface OrderRow {
+  id: string;
+  table: string;
+  customer: string;
+  items: number;
+  total: string;
+  status: string;
+  time: string;
+  bill: string;
+}
+
+interface InvoiceItem {
+  quantity: number;
+  name: string;
+  total: number | string;
+  base_price: number | string;
+  gst_percent: number;
+  line_gst: number | string;
+  line_total: number;
+}
+
+interface InvoiceData {
+  bill_number: string;
+  date: string;
+  customer_name: string;
+  payment_method: string;
+  items: InvoiceItem[];
+  line_items?: Array<{
+    name: string;
+    quantity: number;
+    base_price: number;
+    line_total: number;
+  }>;
+  order_type?: string;
+  staff?: string;
+  payment_status?: string;
+  subtotal: number | string;
+  total_gst: number | string;
+  discount: number;
+  grand_total: number;
+  final_amount: number | string;
+}
 
 const Orders = () => {
   const token = localStorage.getItem("access");
 
-  const [search, setSearch] = useState('');
-  const [orders, setOrders] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [orders, setOrders] = useState<OrderRow[]>([]);
 
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [paymentInput, setPaymentInput] = useState("");
-const [invoiceData, setInvoiceData] = useState<any>(null);
-  // LOAD ORDERS
-  useEffect(() => {
-    loadOrders();
-  }, []);
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
-     const res = await fetch(`${BASE_URL}/api/orders/list/`, {
+      const res = await fetch(`${BASE_URL}/api/orders/list/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as Array<Record<string, unknown>>;
 
- const formatted = data.map((order: any) => ({
-
-  id: order.id,
-
-  table: order.table_name || "N/A",
-
-  customer: order.customer_name || "Walk-in",
-
-  items: order.items_count || 0,
-
-  total: `₹${order.total_amount}`,
-
-  status: order.payment_status === "PAID"
-    ? "paid"
-    : order.status.toLowerCase(),
-
-  time: new Date(order.created_at).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  }),
-
-  bill: order.bill_number,
-}));
+      const formatted = data.map((order) => ({
+        id: String(order.id),
+        table: (order.table_name as string) || "TakeAway",
+        customer: (order.customer_name as string) || "Walk-in",
+        items: Number(order.items_count || 0),
+        total: `Rs ${order.total_amount}`,
+        status:
+          order.payment_status === "PAID"
+            ? "paid"
+            : String(order.status).toLowerCase(),
+        time: new Date(String(order.created_at)).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        bill: String(order.bill_number || ""),
+      }));
 
       setOrders(formatted);
     } catch (err) {
       console.error("Failed to load orders", err);
     }
-  };
+  }, [token]);
 
-  // OPEN MODAL
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
   const openPaymentModal = (orderId: string) => {
     setSelectedOrder(orderId);
     setPaymentMethod("CASH");
     setPaymentInput("");
   };
 
-  // CLOSE MODAL
   const closeModal = () => {
     setSelectedOrder(null);
   };
 
-  // CONFIRM PAYMENT
   const confirmPayment = async () => {
     if (!selectedOrder) return;
 
     try {
-      const res = await fetch(
-        `${BASE_URL}/api/orders/pay/${selectedOrder}/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            method: paymentMethod,
-            reference: paymentInput || null,
-          }),
-        }
-      );
+      const res = await fetch(`${BASE_URL}/api/orders/pay/${selectedOrder}/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          method: paymentMethod,
+          reference: paymentInput || null,
+        }),
+      });
 
       if (res.ok) {
-  closeModal();
+        closeModal();
 
-  setOrders(prev =>
-    prev.map(o =>
-      o.id === selectedOrder
-        ? { ...o, status: "paid" }
-        : o
-    )
-  );
+        setOrders((prev) =>
+          prev.map((o) => (o.id === selectedOrder ? { ...o, status: "paid" } : o))
+        );
 
-  loadOrders();
-}else {
+        loadOrders();
+      } else {
         alert("Payment failed");
       }
     } catch (err) {
@@ -110,278 +143,399 @@ const [invoiceData, setInvoiceData] = useState<any>(null);
   };
 
   const filtered = orders.filter(
-    o =>
-      o.id.includes(search) ||
+    (o) =>
+      String(o.id).includes(search) ||
       o.customer.toLowerCase().includes(search.toLowerCase())
   );
-const openInvoiceModal = async (orderId: string) => {
-  try {
-    const res = await fetch(
-      `${BASE_URL}/api/orders/invoice/${orderId}/`,
-      {
+
+  const openInvoiceModal = async (orderId: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/orders/invoice/${orderId}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
-    );
+      });
 
-    const data = await res.json();
-    setInvoiceData(data);
+      const data = await res.json();
+      setInvoiceData(data);
+    } catch (err) {
+      console.error("Invoice load failed", err);
+    }
+  };
 
-  } catch (err) {
-    console.error("Invoice load failed", err);
-  }
-};
-const sendToWhatsApp = (data: any) => {
-  let message = `🧾 *CAFÉFLOW Invoice*\n\n`;
-  message += `Bill: ${data.bill_number}\n`;
-  message += `Customer: ${data.customer_name}\n\n`;
+  const sendToWhatsApp = (data: InvoiceData) => {
+    let message = `CAFEFLOW Invoice\n\n`;
+    message += `Bill: ${data.bill_number}\n`;
+    message += `Customer: ${data.customer_name}\n\n`;
 
-  data.items.forEach((item: any) => {
-    message += `${item.quantity}x ${item.name} - ₹${item.total}\n`;
-  });
+    data.items.forEach((item) => {
+      message += `${item.quantity}x ${item.name} - Rs ${item.total}\n`;
+    });
 
-  message += `\nTotal: ₹${data.final_amount}`;
+    message += `\nTotal: Rs ${data.final_amount}`;
 
-  const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
-  window.open(url, "_blank");
-};
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  };
+
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+    const paid = orders.filter((o) => o.status === "paid").length;
+    const pending = totalOrders - paid;
+    const revenue = orders.reduce((sum, o) => {
+      const value = Number(String(o.total).replace(/[^0-9.]/g, ""));
+      return sum + (Number.isNaN(value) ? 0 : value);
+    }, 0);
+
+    return { totalOrders, paid, pending, revenue };
+  }, [orders]);
+
+  const invoiceLineItems = useMemo(() => {
+    if (!invoiceData) return [];
+    if (invoiceData.line_items && invoiceData.line_items.length > 0) {
+      return invoiceData.line_items;
+    }
+
+    return (invoiceData.items || []).map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      base_price: Number(item.base_price || 0),
+      line_total: Number(item.line_total || 0),
+    }));
+  }, [invoiceData]);
+
   return (
-    <div className="space-y-[24px] animate-fade-in">
-      <h1 className="text-2xl font-bold text-foreground">Orders</h1>
+    <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(140deg,#f6f1ff_0%,#fcfbff_48%,#efe7ff_100%)] p-4 md:p-6">
+      <style>{`
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-[12px] top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search orders..."
-          className="w-full pl-[36px] pr-[16px] py-[10px] rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-      </div>
+          body * {
+            visibility: hidden !important;
+          }
 
-      <div className="bg-card rounded-lg shadow-soft border border-border overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-secondary/50">
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Order</th>
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Table</th>
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Customer</th>
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Items</th>
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Total</th>
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Status</th>
-              <th className="text-left px-[24px] py-[12px] text-xs font-semibold text-muted-foreground uppercase">Time</th>
-            </tr>
-          </thead>
+          .thermal-print-root,
+          .thermal-print-root * {
+            visibility: visible !important;
+          }
 
-          <tbody className="divide-y divide-border">
-            {filtered.map(o => (
-              <tr key={o.id} className="hover:bg-accent/30 transition-colors">
-                <td className="px-[24px] py-[14px] text-sm font-semibold text-primary">
-                  #{o.id.slice(0, 6)}
-                </td>
-                <td className="px-[24px] py-[14px] text-sm">{o.table}</td>
-                <td className="px-[24px] py-[14px] text-sm">{o.customer}</td>
-                <td className="px-[24px] py-[14px] text-sm text-muted-foreground">{o.items}</td>
-                <td className="px-[24px] py-[14px] text-sm font-semibold">{o.total}</td>
+          .thermal-print-root {
+            position: fixed;
+            inset: 0 auto auto 0;
+            width: 80mm;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 8px;
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            line-height: 1.25;
+            box-shadow: none !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+          }
 
-              
-<td className="px-[24px] py-[14px]">
-  <div className="flex items-center gap-3">
+          .thermal-no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <div className="pointer-events-none absolute -left-20 top-0 h-80 w-80 rounded-full bg-purple-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-violet-300/20 blur-3xl" />
 
-    <StatusBadge variant={o.status} />
+      <div className="relative z-10 mx-auto max-w-[1500px] space-y-6 animate-fade-in">
+        <div className="rounded-3xl border border-purple-200/70 bg-white/85 p-5 shadow-[0_20px_52px_rgba(109,40,217,0.12)] backdrop-blur-sm md:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-purple-700">
+                <ShoppingBag className="h-3.5 w-3.5" />
+                Service Control
+              </p>
+              <h1 className="mt-2 text-2xl font-bold text-purple-950 md:text-3xl">
+                Orders Command
+              </h1>
+              <p className="mt-1 text-sm text-purple-700/80">
+                Track billing, payments, and invoice dispatch in one workspace.
+              </p>
+            </div>
 
-    {o.status !== "paid" ? (
-      <button
-        onClick={() => openPaymentModal(o.id)}
-        className="text-xs px-4 py-1.5 rounded-md bg-primary text-white whitespace-nowrap"
-      >
-        Pay
-      </button>
-    ) : (
-      <>
-        <button
-          disabled
-          className="text-xs px-4 py-1.5 rounded-md bg-green-100 text-green-700"
-        >
-          Paid
-        </button>
+            <div className="relative w-full max-w-sm">
+             
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by order id or customer..."
+                className="w-full rounded-xl border border-purple-200 bg-white/90 py-2.5 pl-10 pr-3 text-sm text-purple-900 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-300/35"
+              />
+            </div>
+          </div>
 
-        <button
-          onClick={() => openInvoiceModal(o.id)}
-          className="text-xs px-4 py-1.5 rounded-md bg-gray-800 text-white"
-        >
-          Invoice
-        </button>
-      </>
-    )}
-  </div>
-</td>
-{invoiceData && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white w-[420px] rounded-xl p-6 shadow-2xl space-y-4">
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              icon={<ShoppingBag className="h-4 w-4" />}
+              label="Total Orders"
+              value={stats.totalOrders}
+              tone="purple"
+            />
+            <StatCard
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              label="Paid"
+              value={stats.paid}
+              tone="green"
+            />
+            <StatCard
+              icon={<Wallet className="h-4 w-4" />}
+              label="Pending"
+              value={stats.pending}
+              tone="amber"
+            />
+            <StatCard
+              icon={<BadgeIndianRupee className="h-4 w-4" />}
+              label="Revenue"
+              value={`Rs ${stats.revenue.toFixed(0)}`}
+              tone="purple"
+            />
+          </div>
+        </div>
 
-      {/* COMPANY HEADER */}
-      <div className="text-center space-y-1">
-        <img
-          src="/logo.jpeg"
-          alt="Company Logo"
-          className="h-12 mx-auto"
-        />
-        <h2 className="text-lg font-bold">DIP & DASH</h2>
-        <p className="text-xs text-muted-foreground">
-          Enterprise Cafeteria
-        </p>
-      </div>
+        <div className="overflow-hidden rounded-2xl border border-purple-200/70 bg-white shadow-[0_18px_45px_rgba(91,33,182,0.12)]">
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px] w-full">
+              <thead>
+                <tr className="bg-[linear-gradient(120deg,#f5eeff_0%,#fbf8ff_100%)] text-left">
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Order
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Table
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Items
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-purple-600">
+                    Time
+                  </th>
+                </tr>
+              </thead>
 
-      <div className="border-t border-dashed border-gray-400" />
+              <tbody className="divide-y divide-purple-100">
+                {filtered.map((o) => (
+                  <tr
+                    key={o.id}
+                    className="transition hover:bg-purple-50/60"
+                  >
+                    <td className="px-6 py-4 text-sm font-semibold text-purple-900">
+                      #{String(o.id).slice(0, 6)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-purple-800">{o.table}</td>
+                    <td className="px-6 py-4 text-sm text-purple-900">{o.customer}</td>
+                    <td className="px-6 py-4 text-sm text-purple-700/80">{o.items}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-purple-900">
+                      {o.total}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge variant={o.status} />
 
-      {/* BILL DETAILS */}
-      <div className="text-sm space-y-1">
-        <p><strong>Bill:</strong> {invoiceData.bill_number}</p>
-        <p><strong>Date:</strong> {new Date(invoiceData.date).toLocaleString()}</p>
-        <p><strong>Customer:</strong> {invoiceData.customer_name}</p>
-        <p><strong>Payment:</strong> {invoiceData.payment_method}</p>
-      </div>
-
-      <div className="border-t border-dashed border-gray-400" />
-
-      {/* ITEMS */}
-      {/* ITEMS TABLE */}
-<div className="space-y-2 max-h-[220px] overflow-y-auto text-sm">
-
-  <div className="flex justify-between font-semibold text-xs border-b pb-1">
-    <span>Item</span>
-    <span>GST</span>
-    <span>Total</span>
-  </div>
-
-  {invoiceData.items.map((item: any, index: number) => (
-    <div key={index} className="flex justify-between text-xs">
-
-      <div className="flex-1">
-        {item.quantity}x {item.name}
-        <div className="text-[10px] text-gray-500">
-          ₹{item.base_price} + {item.gst_percent}% GST
+                        {o.status !== "paid" ? (
+                          <button
+                            onClick={() => openPaymentModal(o.id)}
+                            className="rounded-lg bg-[linear-gradient(135deg,#7c3aed_0%,#5b21b6_100%)] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(91,33,182,0.28)] transition hover:opacity-95"
+                          >
+                            Pay Now
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openInvoiceModal(o.id)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-100 px-3 py-1.5 text-xs font-semibold text-purple-700 transition hover:bg-purple-200"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Invoice
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-purple-700/80">{o.time}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <span>₹{item.line_gst}</span>
+      {invoiceData && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 sm:p-6 flex items-center justify-center">
+          <div className="thermal-print-root w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl bg-card border border-border shadow-soft">
+            <div className="thermal-no-print px-4 py-3 border-b border-border flex items-center justify-between">
+              <p className="text-sm font-semibold">Bill Preview</p>
+              <button
+                onClick={() => setInvoiceData(null)}
+                className="px-3 py-1.5 text-xs rounded-md border border-input hover:bg-accent"
+              >
+                Close
+              </button>
+            </div>
 
-      <span>{item.line_total.toFixed(2)}</span>
-    </div>
-  ))}
-</div>
+            <div className="p-4 bg-white text-slate-900">
+              <div className="mx-auto w-full max-w-md rounded-md border border-dashed border-slate-300 p-4 font-mono text-xs">
+                <div className="text-center border-b border-dashed border-slate-300 pb-3">
+                  <img
+                    src="/logo.jpeg"
+                    alt="Dip and Dash Logo"
+                    className="mx-auto mb-2 h-12 w-12 rounded object-cover"
+                  />
+                  <h3 className="text-sm font-bold tracking-wide">CAFE INVOICE</h3>
+                  <p className="mt-1">Bill No: {invoiceData.bill_number}</p>
+                  <p>{new Date(invoiceData.date).toLocaleString()}</p>
+                </div>
 
-<div className="border-t border-dashed border-gray-400 my-2" />
+                <div className="py-3 space-y-1 border-b border-dashed border-slate-300">
+                  <div className="flex justify-between">
+                    <span>Customer</span>
+                    <span className="font-semibold">{invoiceData.customer_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Order Type</span>
+                    <span>{invoiceData.order_type || "DINE_IN"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Staff</span>
+                    <span>{invoiceData.staff || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Payment</span>
+                    <span>{invoiceData.payment_method}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Status</span>
+                    <span>{invoiceData.payment_status || "PAID"}</span>
+                  </div>
+                </div>
 
-{/* SUMMARY */}
-<div className="space-y-1 text-sm">
+                <div className="py-3 border-b border-dashed border-slate-300">
+                  <p className="mb-2 font-semibold">Items List</p>
+                  <div className="grid grid-cols-12 gap-2 font-semibold mb-2">
+                    <p className="col-span-5">Item</p>
+                    <p className="col-span-2 text-right">Qty</p>
+                    <p className="col-span-2 text-right">Price</p>
+                    <p className="col-span-3 text-right">Total</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {invoiceLineItems.length > 0 ? (
+                      invoiceLineItems.map((li, idx) => (
+                        <div key={`${li.name}-${idx}`} className="grid grid-cols-12 gap-2">
+                          <p className="col-span-5 truncate">{li.name}</p>
+                          <p className="col-span-2 text-right">{li.quantity}</p>
+                          <p className="col-span-2 text-right">{Number(li.base_price).toFixed(0)}</p>
+                          <p className="col-span-3 text-right">{Number(li.line_total).toFixed(0)}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-slate-500">No items available in invoice payload.</p>
+                    )}
+                  </div>
+                </div>
 
-  <div className="flex justify-between">
-    <span>Subtotal</span>
-    <span>₹{invoiceData.subtotal}</span>
-  </div>
+                <div className="pt-3 space-y-1.5">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>Rs.{Number(invoiceData.subtotal).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total GST</span>
+                    <span>Rs.{Number(invoiceData.total_gst).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Discount</span>
+                    <span>Rs.{Number(invoiceData.discount).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t border-dashed border-slate-300 pt-2 text-sm">
+                    <span>Final Amount</span>
+                    <span>Rs.{Number(invoiceData.final_amount).toLocaleString()}</span>
+                  </div>
+                </div>
 
-  <div className="flex justify-between">
-    <span>Total GST</span>
-    <span>₹{invoiceData.total_gst}</span>
-  </div>
+                <p className="mt-4 text-center text-[11px] text-slate-500">Thank you. Visit again.</p>
+              </div>
 
-  {invoiceData.discount > 0 && (
-    <div className="flex justify-between text-red-600">
-      <span>Discount</span>
-      <span>- ₹{invoiceData.discount}</span>
-    </div>
-  )}
+              <div className="thermal-no-print mt-4 flex items-center justify-center gap-3">
+                <button
+                  onClick={() => window.print()}
+                  className="rounded-md bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                >
+                  Thermal Print
+                </button>
+                <button
+                  onClick={() => sendToWhatsApp(invoiceData)}
+                  className="rounded-md bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                >
+                  WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-</div>
-
-<div className="border-t border-dashed border-gray-400 my-2" />
-
-<div className="flex justify-between font-bold text-base">
-  <span>Grand Total</span>
-  <span>₹{invoiceData.grand_total.toFixed(2)}</span>
-</div>
-
-      {/* ACTION BUTTONS */}
-      <div className="flex justify-between gap-3 pt-3">
-        <button
-          onClick={() => window.print()}
-          className="flex-1 bg-primary text-white py-2 rounded-md"
-        >
-          Print
-        </button>
-
-        <button
-          onClick={() => sendToWhatsApp(invoiceData)}
-          className="flex-1 bg-green-600 text-white py-2 rounded-md"
-        >
-          WhatsApp
-        </button>
-      </div>
-
-      <button
-        onClick={() => setInvoiceData(null)}
-        className="w-full text-sm text-gray-500 mt-2"
-      >
-        Close
-      </button>
-
-    </div>
-  </div>
-)}
-                <td className="px-[24px] py-[14px] text-sm text-muted-foreground">
-                  {o.time}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PAYMENT MODAL */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[400px] space-y-4 shadow-xl">
-            <h2 className="text-lg font-semibold">Complete Payment</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f0220]/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-2xl border border-purple-200 bg-white p-6 shadow-[0_26px_70px_rgba(49,17,98,0.38)]">
+            <h2 className="text-lg font-semibold text-purple-950">Complete Payment</h2>
+            <p className="mt-1 text-sm text-purple-700/80">
+              Choose payment mode and confirm transaction.
+            </p>
 
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full border rounded-md px-3 py-2"
-            >
-              <option value="CASH">Cash</option>
-              <option value="UPI">UPI</option>
-              <option value="CARD">Card</option>
-            </select>
+            <div className="mt-4 space-y-3">
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-sm text-purple-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-300/35"
+              >
+                <option value="CASH">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="CARD">Card</option>
+              </select>
 
-            {paymentMethod !== "CASH" && (
-              <input
-                type="text"
-                value={paymentInput}
-                onChange={(e) => setPaymentInput(e.target.value)}
-                placeholder={
-                  paymentMethod === "UPI"
-                    ? "Enter UPI ID"
-                    : "Enter Card Number"
-                }
-                className="w-full border rounded-md px-3 py-2"
-              />
-            )}
+              {paymentMethod !== "CASH" && (
+                <input
+                  type="text"
+                  value={paymentInput}
+                  onChange={(e) => setPaymentInput(e.target.value)}
+                  placeholder={
+                    paymentMethod === "UPI" ? "Enter UPI ID" : "Enter Card Number"
+                  }
+                  className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-sm text-purple-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-300/35"
+                />
+              )}
+            </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 rounded-md border"
+                className="rounded-xl border border-purple-200 px-4 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-50"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmPayment}
-                className="px-4 py-2 rounded-md bg-primary text-white"
+                className="rounded-xl bg-[linear-gradient(135deg,#7c3aed_0%,#5b21b6_100%)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
               >
-                Confirm
+                Confirm Payment
               </button>
             </div>
           </div>
@@ -390,5 +544,34 @@ const sendToWhatsApp = (data: any) => {
     </div>
   );
 };
+
+function StatCard({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: JSX.Element;
+  label: string;
+  value: number | string;
+  tone: "purple" | "green" | "amber";
+}) {
+  const toneClass =
+    tone === "green"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : tone === "amber"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : "border-purple-200 bg-purple-50 text-purple-700";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
 
 export default Orders;

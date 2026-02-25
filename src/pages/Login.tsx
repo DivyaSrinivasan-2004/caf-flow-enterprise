@@ -1,25 +1,16 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  BadgeDollarSign,
-  CheckCircle2,
-  Coffee,
-  Eye,
-  EyeOff,
-  Receipt,
-  ShieldCheck,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Globe, ShieldCheck, Zap } from "lucide-react";
+const loginHeroImage = "/login-hero-food.jpeg";
 
 const Login = () => {
   const { setUser } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<"ADMIN" | "STAFF">("ADMIN");
+  const [remember] = useState(false);
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
@@ -62,158 +53,139 @@ const Login = () => {
       setUser(loginData);
 
       const role = loginData.role?.toUpperCase().trim();
+      if (selectedRole === "ADMIN" && role === "STAFF") {
+        setError("This account is staff. Select Staff tab to continue.");
+        return;
+      }
+      if (selectedRole === "STAFF" && role !== "STAFF") {
+        setError("This account is admin. Select Admin tab to continue.");
+        return;
+      }
+
       if (role === "STAFF") {
         navigate("/staff", { replace: true });
       } else {
         navigate("/admin", { replace: true });
       }
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     }
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f6f2ea]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(120,53,15,0.18),transparent_34%),radial-gradient(circle_at_84%_10%,rgba(15,118,110,0.14),transparent_30%),linear-gradient(145deg,#f6f2ea,#efe7da,#f8f5ef)]" />
-      <div className="absolute -left-24 top-24 h-72 w-72 rounded-full bg-[#78350f]/20 blur-[90px]" />
-      <div className="absolute -right-12 bottom-12 h-80 w-80 rounded-full bg-[#0f766e]/15 blur-[95px]" />
-
-      <div className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-2">
-        <section className="hidden px-10 py-12 lg:flex lg:flex-col lg:justify-between xl:px-16">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#7c2d12]/20 bg-white/70 px-4 py-2 text-xs font-semibold text-[#7c2d12] backdrop-blur">
-              <Coffee className="h-4 w-4" />
-              CAFE BILLING ENTERPRISE
-            </div>
-            <h1 className="mt-6 max-w-xl text-4xl font-bold leading-tight text-[#1c1917] xl:text-5xl">
-              Real-time Cafe Billing Platform for Revenue, Operations, and Growth
-            </h1>
-            <p className="mt-4 max-w-lg text-sm text-[#57534e]">
-              Unified dashboard for live billing, kitchen workflow, shift productivity, and customer conversion tracking.
-            </p>
-          </div>
-
-          <div className="grid max-w-xl grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-[#a8a29e]/30 bg-white/75 p-4 shadow-soft backdrop-blur">
-              <div className="mb-3 inline-flex rounded-lg bg-[#78350f]/10 p-2 text-[#78350f]">
-                <BadgeDollarSign className="h-4 w-4" />
-              </div>
-              <p className="text-xs text-[#78716c]">Today Revenue</p>
-              <p className="mt-1 text-xl font-semibold text-[#1c1917]">$4,820</p>
-              <p className="mt-1 text-xs text-emerald-700">+14.8% vs yesterday</p>
+    <div className="min-h-screen bg-[#efebf9]">
+      <div className="grid min-h-screen w-full overflow-hidden lg:grid-cols-2">
+        <section
+          className="relative hidden lg:block"
+          style={{
+            backgroundImage: `linear-gradient(120deg,rgba(79,33,157,0.34),rgba(120,67,217,0.26)), url(${loginHeroImage})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(255,255,255,0.10),transparent_42%)]" />
+          <div className="relative z-10 flex h-full flex-col justify-between p-10 text-white xl:p-12">
+            <div className="inline-flex w-fit items-center gap-3  px-4 py-3 backdrop-blur-sm">
+             
+             
             </div>
 
-            <div className="rounded-2xl border border-[#a8a29e]/30 bg-white/75 p-4 shadow-soft backdrop-blur">
-              <div className="mb-3 inline-flex rounded-lg bg-[#0f766e]/10 p-2 text-[#0f766e]">
-                <Receipt className="h-4 w-4" />
+            <div>
+              <h2 className="max-w-xl text-5xl font-bold leading-[1.04] tracking-tight">
+                Manage your cafe like never before.
+              </h2>
+              <p className="mt-4 max-w-lg text-base text-white/85">
+                Enterprise-grade billing, operations, and realtime staff workflow across locations.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3 text-sm">
+                <span className="rounded-full border border-white/35 bg-white/15 px-3 py-1.5">Enterprise Security</span>
+                <span className="rounded-full border border-white/35 bg-white/15 px-3 py-1.5">Realtime Sync</span>
+                <span className="rounded-full border border-white/35 bg-white/15 px-3 py-1.5">Multi-location</span>
               </div>
-              <p className="text-xs text-[#78716c]">Bills Processed</p>
-              <p className="mt-1 text-xl font-semibold text-[#1c1917]">186</p>
-              <p className="mt-1 text-xs text-[#57534e]">Across dine-in and takeaway</p>
-            </div>
-
-            <div className="rounded-2xl border border-[#a8a29e]/30 bg-white/75 p-4 shadow-soft backdrop-blur">
-              <div className="mb-3 inline-flex rounded-lg bg-[#a16207]/10 p-2 text-[#a16207]">
-                <Users className="h-4 w-4" />
-              </div>
-              <p className="text-xs text-[#78716c]">Active Staff</p>
-              <p className="mt-1 text-xl font-semibold text-[#1c1917]">12</p>
-              <p className="mt-1 text-xs text-[#57534e]">Shift coverage optimized</p>
-            </div>
-
-            <div className="rounded-2xl border border-[#a8a29e]/30 bg-white/75 p-4 shadow-soft backdrop-blur">
-              <div className="mb-3 inline-flex rounded-lg bg-[#1d4ed8]/10 p-2 text-[#1d4ed8]">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-              <p className="text-xs text-[#78716c]">Conversion Rate</p>
-              <p className="mt-1 text-xl font-semibold text-[#1c1917]">34%</p>
-              <p className="mt-1 text-xs text-emerald-700">Growth campaign active</p>
             </div>
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-5 py-10 sm:px-8">
-          <div className="w-full max-w-md rounded-3xl border border-[#d6d3d1] bg-white/85 p-8 shadow-[0_30px_70px_rgba(41,37,36,0.15)] backdrop-blur-xl sm:p-9">
-            <div className="mb-8 flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#78350f] to-[#0f766e] text-white shadow-lg">
-                  <Coffee className="h-6 w-6" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#1c1917]">CafeFlow</h2>
-                  <p className="text-xs text-[#78716c]">Business Billing Suite</p>
-                </div>
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Live
-              </span>
+        <section className="flex items-center justify-center bg-[#f6f3fc] px-4 py-8 sm:px-7 lg:px-10">
+          <div className="w-full max-w-[540px] rounded-3xl border border-purple-200 bg-white p-6 shadow-[0_18px_44px_rgba(76,29,149,0.16)] sm:p-8">
+            <h1 className="text-3xl font-bold text-[#24143e]">Welcome back</h1>
+            <p className="mt-1 text-sm text-[#6f43cf]">Sign in to your account to continue</p>
+
+            <div className="mt-5 grid grid-cols-2 rounded-full bg-[#ece6fb] p-1 text-sm font-semibold">
+              <button
+                type="button"
+                onClick={() => setSelectedRole("ADMIN")}
+                className={`rounded-full py-2 transition ${
+                  selectedRole === "ADMIN"
+                    ? "bg-[linear-gradient(135deg,#7f56d9_0%,#6f43cf_100%)] text-white"
+                    : "text-[#6a6187]"
+                }`}
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRole("STAFF")}
+                className={`rounded-full py-2 transition ${
+                  selectedRole === "STAFF"
+                    ? "bg-[linear-gradient(135deg,#7f56d9_0%,#6f43cf_100%)] text-white"
+                    : "text-[#6a6187]"
+                }`}
+              >
+                Staff
+              </button>
             </div>
 
-            <h3 className="text-2xl font-semibold text-[#1c1917]">Sign in to your workspace</h3>
-            <p className="mt-2 text-sm text-[#78716c]">Access billing, staff operations, and marketing insights.</p>
-
-            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-[#44403c]">Username</label>
+                <label className="mb-1.5 block text-sm font-medium text-[#32234d]">Username</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full rounded-xl border border-[#d6d3d1] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                  className="h-12 w-full rounded-xl border border-[#d9cdf5] bg-white px-4 text-sm text-[#2b1454] outline-none transition placeholder:text-[#9a8fc0] focus:border-[#8b67db] focus:ring-2 focus:ring-[#8b67db]/25"
                   placeholder="Enter username"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-[#44403c]">Password</label>
+                <label className="mb-1.5 block text-sm font-medium text-[#32234d]">Password</label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-[#d6d3d1] bg-white px-4 py-3 pr-10 text-sm outline-none transition focus:border-[#0f766e] focus:ring-2 focus:ring-[#99f6e4]"
+                    className="h-12 w-full rounded-xl border border-[#d9cdf5] bg-white px-4 pr-11 text-sm text-[#2b1454] outline-none transition placeholder:text-[#9a8fc0] focus:border-[#8b67db] focus:ring-2 focus:ring-[#8b67db]/25"
                     placeholder="Enter password"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#78716c] hover:text-[#0f766e]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9d8fca] hover:text-[#6f43cf]"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-[#57534e]">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="h-4 w-4 rounded border-[#d6d3d1] accent-[#0f766e]"
-                  />
-                  Remember me
-                </label>
-
-                <span className="inline-flex items-center gap-1 text-xs text-[#78716c]">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Secure Login
-                </span>
-              </div>
-
-              {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+              {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#78350f] to-[#0f766e] px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-95"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#7f56d9_0%,#6f43cf_100%)] text-sm font-semibold text-white shadow-[0_10px_22px_rgba(111,67,207,0.34)] transition hover:opacity-95"
               >
-                Continue to Dashboard
+                Sign In
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
+
+            <div className="mt-6 grid grid-cols-1 gap-2 border-t border-purple-100 pt-4 text-xs text-[#7a6da5] sm:grid-cols-3">
+              <p className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />256-bit SSL</p>
+              <p className="inline-flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" />GDPR Ready</p>
+              <p className="inline-flex items-center gap-1.5"><Zap className="h-3.5 w-3.5" />99.9% Uptime</p>
+            </div>
           </div>
         </section>
       </div>

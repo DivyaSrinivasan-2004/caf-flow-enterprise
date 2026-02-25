@@ -3,10 +3,9 @@ export const MODULES = [
   "Invoices",
   "Products",
   "Customers",
-  "Payments",
+  "Vendors",
   "Reports",
   "Inventory",
-  "Settings",
 ];
 
 export const DEFAULT_PERMISSIONS: Record<string, string[]> = {
@@ -16,10 +15,10 @@ export const DEFAULT_PERMISSIONS: Record<string, string[]> = {
     "Invoices",
     "Products",
     "Customers",
-    "Payments",
+    "Vendors",
     "Reports",
     "Inventory",
   ],
-  Accountant: ["Dashboard", "Invoices", "Payments", "Reports"],
+  Accountant: ["Dashboard", "Invoices", "Vendors", "Reports"],
   Staff: ["Dashboard"],
 };

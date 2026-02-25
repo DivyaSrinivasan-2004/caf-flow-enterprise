@@ -1,5 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, ShoppingBag, Users, DollarSign } from "lucide-react";
+import { TrendingUp, ShoppingBag, Users, DollarSign, type LucideIcon } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import dashboardBanner from "@/assets/dashboard-banner.jpg";
 import dishCappuccino from "@/assets/dish-cappuccino.jpg";
@@ -7,7 +8,51 @@ import dishLatte from "@/assets/dish-latte.jpg";
 import dishCroissant from "@/assets/dish-croissant.jpg";
 import dishChocolateCake from "@/assets/dish-chocolate-cake.jpg";
 
-const revenueData = [
+const API_BASE = "http://192.168.1.3:8000";
+type Period = "weekly" | "monthly";
+type JsonRecord = Record<string, unknown>;
+
+interface RevenuePoint {
+  name: string;
+  revenue: number;
+  orders: number;
+}
+
+interface PaymentPoint {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface CategoryPoint {
+  name: string;
+  sales: number;
+}
+
+interface StatPoint {
+  label: string;
+  value: string;
+  change: string;
+  icon: LucideIcon;
+  trend: "up" | "neutral";
+}
+
+interface TopDish {
+  name: string;
+  sold: number;
+  image: string;
+}
+
+interface RecentOrder {
+  id: string;
+  customer: string;
+  items: number;
+  amount: string;
+  type: string;
+  status: string;
+}
+
+const fallbackRevenueData: RevenuePoint[] = [
   { name: "Mon", revenue: 4200, orders: 85 },
   { name: "Tue", revenue: 5100, orders: 102 },
   { name: "Wed", revenue: 4800, orders: 96 },
@@ -17,13 +62,13 @@ const revenueData = [
   { name: "Sun", revenue: 6700, orders: 134 },
 ];
 
-const paymentData = [
+const fallbackPaymentData: PaymentPoint[] = [
   { name: "Cash", value: 35, color: "hsl(252, 75%, 60%)" },
   { name: "Card", value: 40, color: "hsl(252, 65%, 75%)" },
   { name: "UPI", value: 25, color: "hsl(200, 80%, 55%)" },
 ];
 
-const categoryData = [
+const fallbackCategoryData: CategoryPoint[] = [
   { name: "Coffee", sales: 4500 },
   { name: "Tea", sales: 2800 },
   { name: "Snacks", sales: 3200 },
@@ -31,27 +76,62 @@ const categoryData = [
   { name: "Juice", sales: 2100 },
 ];
 
-const stats = [
-  { label: "Today's Revenue", value: "₹43,250", change: "+12.5%", icon: DollarSign, trend: "up" },
+const fallbackStats: StatPoint[] = [
+  { label: "Today's Revenue", value: "Rs. 43,250", change: "+12.5%", icon: DollarSign, trend: "up" },
   { label: "Total Orders", value: "178", change: "+8.2%", icon: ShoppingBag, trend: "up" },
   { label: "Active Staff", value: "12", change: "On Duty", icon: Users, trend: "neutral" },
-  { label: "Avg. Order Value", value: "₹243", change: "+3.1%", icon: TrendingUp, trend: "up" },
+  { label: "Avg. Order Value", value: "Rs. 243", change: "+3.1%", icon: TrendingUp, trend: "up" },
 ];
 
-const topDishes = [
+const fallbackTopDishes: TopDish[] = [
   { name: "Cappuccino", sold: 42, image: dishCappuccino },
   { name: "Latte", sold: 38, image: dishLatte },
   { name: "Croissant", sold: 27, image: dishCroissant },
   { name: "Chocolate Cake", sold: 19, image: dishChocolateCake },
 ];
 
-const recentOrders = [
-  { id: "#BF1234", customer: "Walk-in", items: 3, amount: "₹520", type: "Dine-In", status: "Served" },
-  { id: "#BF1235", customer: "Rahul K.", items: 2, amount: "₹340", type: "Takeaway", status: "Ready" },
-  { id: "#BF1236", customer: "Table 5", items: 5, amount: "₹890", type: "Dine-In", status: "Cooking" },
-  { id: "#BF1237", customer: "Priya M.", items: 1, amount: "₹180", type: "Takeaway", status: "Served" },
-  { id: "#BF1238", customer: "Table 2", items: 4, amount: "₹720", type: "Dine-In", status: "Pending" },
+const fallbackRecentOrders: RecentOrder[] = [
+  { id: "#BF1234", customer: "Walk-in", items: 3, amount: "Rs. 520", type: "Dine-In", status: "Served" },
+  { id: "#BF1235", customer: "Rahul K.", items: 2, amount: "Rs. 340", type: "Takeaway", status: "Ready" },
+  { id: "#BF1236", customer: "Table 5", items: 5, amount: "Rs. 890", type: "Dine-In", status: "Cooking" },
+  { id: "#BF1237", customer: "Priya M.", items: 1, amount: "Rs. 180", type: "Takeaway", status: "Served" },
+  { id: "#BF1238", customer: "Table 2", items: 4, amount: "Rs. 720", type: "Dine-In", status: "Pending" },
 ];
+
+const paymentColors = [
+  "hsl(252, 75%, 60%)",
+  "hsl(252, 65%, 75%)",
+  "hsl(200, 80%, 55%)",
+  "hsl(160, 70%, 45%)",
+  "hsl(30, 90%, 55%)",
+];
+
+const dishFallbacks = [dishCappuccino, dishLatte, dishCroissant, dishChocolateCake];
+
+const asRecord = (value: unknown): JsonRecord =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
+
+const asList = (value: unknown): JsonRecord[] =>
+  Array.isArray(value) ? value.map((x) => asRecord(x)) : [];
+
+const pickList = (raw: unknown): JsonRecord[] => {
+  if (Array.isArray(raw)) return asList(raw);
+  const wrapper = asRecord(raw);
+  return asList(wrapper.data).length > 0 ? asList(wrapper.data) : asList(wrapper.results);
+};
+
+const toNum = (value: unknown) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const money = (value: number) => `Rs. ${value.toLocaleString()}`;
+
+const pretty = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (m) => m.toUpperCase());
 
 const container = {
   hidden: { opacity: 0 },
@@ -63,6 +143,219 @@ const item = {
 };
 
 const AdminDashboard = () => {
+  const [period, setPeriod] = useState<Period>("weekly");
+  const [summary, setSummary] = useState({
+    revenue: 43250,
+    orders: 178,
+    staff: 12,
+    avgOrder: 243,
+    revenueChange: "+12.5%",
+    orderChange: "+8.2%",
+    aovChange: "+3.1%",
+  });
+  const [revenueData, setRevenueData] = useState<RevenuePoint[]>(fallbackRevenueData);
+  const [paymentData, setPaymentData] = useState<PaymentPoint[]>(fallbackPaymentData);
+  const [categoryData, setCategoryData] = useState<CategoryPoint[]>(fallbackCategoryData);
+  const [topDishes, setTopDishes] = useState<TopDish[]>(fallbackTopDishes);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>(fallbackRecentOrders);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("access");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const [summaryRes, weeklyRevenueRes, monthlyRevenueRes, paymentRes, categoryRes, topRes, ordersRes] = await Promise.all([
+          fetch(`${API_BASE}/api/reports/dashboard/`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/reports/sales/daily/?period=weekly`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/reports/sales/daily/?period=monthly`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/reports/payments/method/`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/reports/category/sales/?limit=6`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/reports/top-dishes/?limit=5`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/api/orders/recent/?limit=10`, { headers: getAuthHeaders() }),
+        ]);
+
+        if (summaryRes.ok) {
+          const raw = await summaryRes.json();
+          const metricList = Array.isArray(raw) ? asList(raw) : [];
+          const metricMap =
+            metricList.length > 0
+              ? metricList.reduce<Record<string, unknown>>((acc, x) => {
+                  const key = String(x.metric ?? "").trim().toLowerCase();
+                  if (key) acc[key] = x.value;
+                  return acc;
+                }, {})
+              : null;
+
+          if (metricMap) {
+            const revenue = toNum(metricMap["total sales"]);
+            const orders = toNum(metricMap["total orders"]);
+            const staff = toNum(metricMap["active staff"]);
+            const avgOrder = toNum(metricMap["average order value"]);
+            setSummary((prev) => ({
+              revenue,
+              orders,
+              staff,
+              avgOrder,
+              revenueChange: prev.revenueChange,
+              orderChange: prev.orderChange,
+              aovChange: prev.aovChange,
+            }));
+          } else {
+          const root = asRecord(raw);
+          const nested = asRecord(root.data);
+          const listItem = asRecord(Array.isArray(raw) ? raw[0] : undefined);
+          const resultsItem = asRecord(Array.isArray(root.results) ? root.results[0] : undefined);
+          const s = Object.keys(nested).length
+            ? nested
+            : Object.keys(listItem).length
+            ? listItem
+            : Object.keys(resultsItem).length
+            ? resultsItem
+            : root;
+
+          const revenue = toNum(s.today_revenue ?? s.todays_revenue ?? s.today_sales ?? s.total_revenue ?? s.total_sales ?? s.revenue);
+          const orders = toNum(s.total_orders ?? s.orders_count ?? s.today_orders ?? s.todays_orders ?? s.order_count);
+          const staff = toNum(s.active_staff ?? s.staff_on_duty ?? s.staff_count);
+          const avgOrder = toNum(s.avg_order_value ?? s.average_order_value ?? s.aov ?? s.avg_ticket_size ?? (orders > 0 ? revenue / orders : 0));
+          const hasKnownSummaryField =
+            s.today_revenue !== undefined ||
+            s.todays_revenue !== undefined ||
+            s.today_sales !== undefined ||
+            s.total_revenue !== undefined ||
+            s.total_sales !== undefined ||
+            s.revenue !== undefined ||
+            s.total_orders !== undefined ||
+            s.orders_count !== undefined ||
+            s.today_orders !== undefined ||
+            s.todays_orders !== undefined ||
+            s.order_count !== undefined ||
+            s.active_staff !== undefined ||
+            s.staff_on_duty !== undefined ||
+            s.staff_count !== undefined ||
+            s.avg_order_value !== undefined ||
+            s.average_order_value !== undefined ||
+            s.aov !== undefined ||
+            s.avg_ticket_size !== undefined;
+
+          if (hasKnownSummaryField) {
+            setSummary({
+              revenue,
+              orders,
+              staff,
+              avgOrder,
+              revenueChange: String(s.revenue_change_pct ?? s.revenue_change ?? "+0%"),
+              orderChange: String(s.orders_change_pct ?? s.orders_change ?? "+0%"),
+              aovChange: String(s.aov_change_pct ?? s.aov_change ?? "+0%"),
+            });
+          }
+          }
+        }
+
+        const mapRevenue = (raw: unknown): RevenuePoint[] => {
+          const wrapper = asRecord(raw);
+          const list = Array.isArray(raw) ? asList(raw) : asList(wrapper.data);
+          return list
+            .map((x) => ({
+              name: String(
+                x.name ??
+                  x.day ??
+                  x.weekday ??
+                  (x.date ? new Date(String(x.date)).toLocaleDateString("en-US", { weekday: "short" }) : "")
+              ),
+              revenue: toNum(x.revenue ?? x.total_sales ?? x.total_amount ?? x.sales),
+              orders: toNum(x.orders ?? x.total_orders ?? x.orders_count),
+            }))
+            .filter((x) => x.name);
+        };
+
+        let weeklyRevenueData: RevenuePoint[] = [];
+        let monthlyRevenueData: RevenuePoint[] = [];
+
+        if (weeklyRevenueRes.ok) {
+          const raw = await weeklyRevenueRes.json();
+          weeklyRevenueData = mapRevenue(raw);
+        }
+
+        if (monthlyRevenueRes.ok) {
+          const raw = await monthlyRevenueRes.json();
+          monthlyRevenueData = mapRevenue(raw);
+        }
+
+        const selectedRevenueData = period === "weekly" ? weeklyRevenueData : monthlyRevenueData;
+        if (selectedRevenueData.length > 0) setRevenueData(selectedRevenueData);
+
+        if (paymentRes.ok) {
+          const raw = await paymentRes.json();
+          const wrapper = asRecord(raw);
+          const list = Array.isArray(raw) ? asList(raw) : asList(wrapper.data);
+          const values = list.map((x) => toNum(x.percent ?? x.percentage ?? x.value ?? x.amount ?? x.total_amount ?? x.total));
+          const sum = values.reduce((acc, v) => acc + v, 0);
+          const hasPct = list.some((x) => x.percent !== undefined || x.percentage !== undefined);
+          const mapped = list.map((x, i) => ({
+            name: String(x.name ?? x.method ?? x.payment_method ?? "Unknown"),
+            value: hasPct ? values[i] : sum > 0 ? Number(((values[i] / sum) * 100).toFixed(1)) : 0,
+            color: paymentColors[i % paymentColors.length],
+          }));
+          if (mapped.length > 0) setPaymentData(mapped);
+        }
+
+        if (categoryRes.ok) {
+          const raw = await categoryRes.json();
+          const list = pickList(raw);
+          const mapped = list
+            .map((x) => ({
+              name: String(x.category_name ?? x.category ?? x.name ?? "Other"),
+              sales: toNum(x.sales_amount ?? x.total_amount ?? x.total_sales ?? x.sales ?? x.revenue),
+            }))
+            .slice(0, 6);
+          if (mapped.length > 0) setCategoryData(mapped);
+        }
+
+        if (topRes.ok) {
+          const raw = await topRes.json();
+          const list = pickList(raw);
+          const mapped = list.slice(0, 5).map((x, i) => ({
+            name: String(x.dish ?? x.product_name ?? x.name ?? x.dish_name ?? x.item_name ?? x.menu_item_name ?? x.menu_item__name ?? "Product"),
+            sold: toNum(x.qty ?? x.quantity_sold ?? x.sold ?? x.count ?? x.total_quantity ?? x.total_sold ?? x.orders_count),
+            image: String(x.image_url ?? x.image ?? x.photo ?? x.thumbnail ?? dishFallbacks[i % dishFallbacks.length]),
+          }));
+          if (mapped.length > 0) setTopDishes(mapped);
+        }
+
+        if (ordersRes.ok) {
+          const raw = await ordersRes.json();
+          const list = pickList(raw);
+          const mapped = list.slice(0, 10).map((x) => ({
+            id: x.bill_number ? `#${String(x.bill_number)}` : `#${String(x.id ?? "ORDER").slice(0, 8)}`,
+            customer: String(x.customer_name ?? x.table_name ?? "Walk-in"),
+            items: toNum(x.items_count ?? x.items),
+            amount: money(toNum(x.total_amount ?? x.amount ?? x.grand_total)),
+            type: pretty(String(x.order_type ?? (x.table_name ? "dine_in" : "takeaway"))),
+            status: pretty(String(x.status ?? x.payment_status ?? "Pending")),
+          }));
+          if (mapped.length > 0) setRecentOrders(mapped);
+        }
+      } catch (error) {
+        console.error("Dashboard load failed:", error);
+      }
+    };
+
+    void loadDashboard();
+  }, [period]);
+
+  const stats = useMemo<StatPoint[]>(
+    () => [
+      { label: "Today's Revenue", value: money(summary.revenue), change: summary.revenueChange, icon: DollarSign, trend: "up" },
+      { label: "Total Orders", value: String(summary.orders), change: summary.orderChange, icon: ShoppingBag, trend: "up" },
+      { label: "Active Staff", value: String(summary.staff), change: "On Duty", icon: Users, trend: "neutral" },
+      { label: "Avg. Order Value", value: money(summary.avgOrder), change: summary.aovChange, icon: TrendingUp, trend: "up" },
+    ],
+    [summary]
+  );
+
   return (
     <div className="w-full py-8">
       {/* Banner */}
@@ -71,24 +364,24 @@ const AdminDashboard = () => {
         animate={{ opacity: 1, y: 0 }}
         className="relative rounded-2xl overflow-hidden mb-8 h-48"
       >
-        <img src={dashboardBanner} alt="Café overview" className="w-full h-full object-cover" />
+        <img src={dashboardBanner} alt="Cafe overview" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/70 via-foreground/40 to-transparent" />
         <div className="absolute inset-0 flex items-center px-8">
           <div>
-            <h1 className="text-2xl font-bold text-primary-foreground">Good Morning! ☕</h1>
-            <p className="text-primary-foreground/80 text-sm mt-1">Here's what's happening at your café today</p>
+            <h1 className="text-2xl font-bold text-primary-foreground">Good Morning! Cafe</h1>
+            <p className="text-primary-foreground/80 text-sm mt-1">Here's what's happening at your cafe today</p>
             <div className="flex gap-6 mt-4">
               <div>
                 <p className="text-xs text-primary-foreground/60">Revenue</p>
-                <p className="text-lg font-bold text-primary-foreground">₹43,250</p>
+                <p className="text-lg font-bold text-primary-foreground">{money(summary.revenue)}</p>
               </div>
               <div>
                 <p className="text-xs text-primary-foreground/60">Orders</p>
-                <p className="text-lg font-bold text-primary-foreground">178</p>
+                <p className="text-lg font-bold text-primary-foreground">{summary.orders}</p>
               </div>
               <div>
                 <p className="text-xs text-primary-foreground/60">Staff</p>
-                <p className="text-lg font-bold text-primary-foreground">12</p>
+                <p className="text-lg font-bold text-primary-foreground">{summary.staff}</p>
               </div>
             </div>
           </div>
@@ -125,18 +418,28 @@ const AdminDashboard = () => {
               <p className="text-xs text-muted-foreground mt-0.5">This week's earnings</p>
             </div>
             <div className="flex gap-1 p-1 bg-secondary rounded-full">
-              <button className="px-3 py-1 text-xs font-medium gradient-primary text-primary-foreground rounded-full">Weekly</button>
-              <button className="px-3 py-1 text-xs font-medium text-muted-foreground rounded-full hover:text-foreground">Monthly</button>
+              <button
+                onClick={() => setPeriod("weekly")}
+                className={`px-3 py-1 text-xs font-medium rounded-full ${period === "weekly" ? "gradient-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setPeriod("monthly")}
+                className={`px-3 py-1 text-xs font-medium rounded-full ${period === "monthly" ? "gradient-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Monthly
+              </button>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(252, 20%, 92%)" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(250, 10%, 50%)" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(250, 10%, 50%)" }} tickFormatter={(v) => `₹${v / 1000}K`} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(250, 10%, 50%)" }} tickFormatter={(v) => `Rs.${Math.round(v / 1000)}K`} />
               <Tooltip
                 contentStyle={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(12px)", border: "1px solid hsl(252, 20%, 90%)", borderRadius: "12px", boxShadow: "0 4px 24px hsl(252 75% 60% / 0.1)" }}
-                formatter={(value: number) => [`₹${value.toLocaleString()}`, "Revenue"]}
+                formatter={(value: number) => [money(value), "Revenue"]}
               />
               <Line type="monotone" dataKey="revenue" stroke="hsl(252, 75%, 60%)" strokeWidth={3} dot={false} />
             </LineChart>
@@ -197,8 +500,8 @@ const AdminDashboard = () => {
             <BarChart data={categoryData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(252, 20%, 92%)" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(250, 10%, 50%)" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(250, 10%, 50%)" }} tickFormatter={(v) => `₹${v / 1000}K`} />
-              <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`]} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(250, 10%, 50%)" }} tickFormatter={(v) => `Rs.${Math.round(v / 1000)}K`} />
+              <Tooltip formatter={(value: number) => [money(value)]} />
               <Bar dataKey="sales" fill="hsl(252, 75%, 60%)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -233,7 +536,7 @@ const AdminDashboard = () => {
                     <td className="py-3 text-muted-foreground">{order.items}</td>
                     <td className="py-3 font-semibold text-foreground">{order.amount}</td>
                     <td className="py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${order.type === "Dine-In" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"}`}>{order.type}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${order.type === "Dine In" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"}`}>{order.type}</span>
                     </td>
                     <td className="py-3">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${

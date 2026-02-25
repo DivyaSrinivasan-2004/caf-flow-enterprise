@@ -2,11 +2,11 @@ import {
   Package,
   AlertTriangle,
   TrendingDown,
-  
   Plus,
   Pencil,
   Trash2,
-  BarChart3
+  BarChart3,
+  Sparkles
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -144,137 +144,186 @@ const calculateValuation = (stock: number) => {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="relative -mt-4 space-y-6 overflow-hidden animate-fade-in md:-mt-6">
+      <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-violet-300/25 blur-3xl" />
+      <div className="pointer-events-none absolute -right-20 top-10 h-80 w-80 rounded-full bg-fuchsia-300/20 blur-3xl" />
 
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold">Inventory Intelligence</h1>
-          <p className="text-sm text-gray-500">
-            Monitor stock health and operational readiness
-          </p>
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_1fr]">
+        <div className="relative overflow-hidden rounded-3xl border border-violet-200 bg-[linear-gradient(130deg,#1b1132_0%,#452678_42%,#7441c9_100%)] p-7 text-white shadow-[0_18px_42px_rgba(52,22,97,0.34)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(255,255,255,0.26),transparent_34%),radial-gradient(circle_at_82%_26%,rgba(255,255,255,0.14),transparent_28%)]" />
+          <div className="relative z-10">
+            <p className="text-xs uppercase tracking-[0.24em] text-violet-100/90">Enterprise Supply Desk</p>
+            <h1 className="mt-2 text-4xl font-bold leading-tight">Inventory Intelligence</h1>
+            <p className="mt-1.5 max-w-xl text-sm text-violet-100/95">
+              Real-time stock posture, reorder liability, and valuation visibility in one workspace.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1.5">Realtime Monitoring</span>
+              <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1.5">Forecast Ready</span>
+              <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1.5">Ops Compliant</span>
+            </div>
+          </div>
         </div>
 
-        <button
-          onClick={() => setShowAdd(true)}
-          className="bg-purple-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition"
-        >
-          <Plus className="w-4 h-4" />
-          Add Item
-        </button>
-      </div>
+        <div className="rounded-3xl border border-violet-200/80 bg-white/92 p-6 shadow-[0_14px_34px_rgba(72,35,130,0.12)] backdrop-blur-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="inline-flex items-center gap-2 text-violet-700">
+              <Sparkles className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.16em]">Actions</span>
+            </div>
+            <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
+              {filtered.length} visible
+            </span>
+          </div>
 
-      {/* ANALYTICS STRIP */}
-      <div className="grid grid-cols-4 gap-6">
+          <div className="space-y-3">
+            <div className="relative">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search ingredients..."
+                className="w-full rounded-xl border border-violet-200 bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)] px-4 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-300/40"
+              />
+            </div>
 
-        <Card title="Total Items" value={items.length} icon={<Package className="w-5 h-5" />} />
+            <button
+              onClick={() => setShowAdd(true)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#7f56d9_0%,#6f43cf_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(111,67,207,0.34)] transition hover:opacity-95"
+            >
+              <Plus className="w-4 h-4" />
+              Add Ingredient
+            </button>
+          </div>
+        </div>
+      </section>
 
-        <Card title="Low Stock" value={lowCount} icon={<AlertTriangle className="w-5 h-5 text-yellow-500" />} />
-
-        <Card title="Out of Stock" value={outCount} icon={<TrendingDown className="w-5 h-5 text-red-500" />} />
-
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card title="Total Items" value={items.length} icon={<Package className="w-5 h-5 text-violet-600" />} />
+        <Card title="Low Stock" value={lowCount} icon={<AlertTriangle className="w-5 h-5 text-fuchsia-500" />} />
+        <Card title="Out of Stock" value={outCount} icon={<TrendingDown className="w-5 h-5 text-rose-500" />} />
         <Card
           title="Inventory Health"
           value={`${items.length === 0 ? 0 : Math.round(((items.length - lowCount - outCount) / items.length) * 100)}%`}
-          icon={<BarChart3 className="w-5 h-5 text-green-500" />}
+          icon={<BarChart3 className="w-5 h-5 text-violet-600" />}
         />
+      </section>
 
-      </div>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_10px_20px_rgba(2,6,23,0.06)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="bg-slate-100 text-slate-600 uppercase text-[11px] tracking-[0.12em]">
+              <tr>
+                <th className="px-6 py-3.5 text-left">Ingredient</th>
+                <th className="px-6 py-3.5 text-left">Stock</th>
+                <th className="px-6 py-3.5 text-left">Min Level</th>
+                <th className="px-6 py-3.5 text-left">Reorder</th>
+                <th className="px-6 py-3.5 text-left">Valuation</th>
+                <th className="px-6 py-3.5 text-left">Health</th>
+                <th className="px-6 py-3.5 text-left">Actions</th>
+              </tr>
+            </thead>
 
-      {/* SEARCH BAR */}
-      <div className="flex justify-between items-center">
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map(i => {
+                const current = Number(i.current_stock)
+                const min = Number(i.min_stock)
+                const status = getStatus(current, min)
+                const health = calculateHealthScore(current, min)
+                const reorder = calculateReorder(current, min)
+                const valuation = calculateValuation(current)
 
-        <div className="relative w-[300px]">
-       
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search ingredients..."
-            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm"
-          />
+                return (
+                  <tr key={i.id} className="transition hover:bg-slate-50/60">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                        <span className="font-semibold tracking-tight text-slate-900">{i.name}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4 font-medium text-slate-700">
+                      {i.current_stock} {i.unit}
+                    </td>
+
+                    <td className="px-6 py-4 font-medium text-slate-700">
+                      {i.min_stock} {i.unit}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <span className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                        reorder > 0 ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-slate-200 bg-slate-50 text-slate-600"
+                      }`}>
+                        {reorder > 0 ? `Reorder ${reorder} ${i.unit}` : "No Reorder"}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                      Rs.{valuation.toLocaleString()}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="space-y-1">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+                          status === 'good'
+                            ? 'text-emerald-700'
+                            : status === 'low'
+                            ? 'text-amber-700'
+                            : 'text-rose-700'
+                        }`}>
+                          <span className={`h-2 w-2 rounded-full ${
+                            status === 'good'
+                              ? 'bg-emerald-500'
+                              : status === 'low'
+                              ? 'bg-amber-500'
+                              : 'bg-rose-500'
+                          }`} />
+                          {status === 'good'
+                            ? 'Healthy'
+                            : status === 'low'
+                            ? 'Low Stock'
+                            : 'Out of Stock'}
+                        </span>
+                        <div className="h-1.5 w-28 rounded-full bg-slate-200">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              health >= 100 ? "bg-emerald-500" : health >= 40 ? "bg-amber-500" : "bg-rose-500"
+                            }`}
+                            style={{ width: `${health}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelected(i)
+                            setShowEdit(true)
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSelected(i)
+                            setShowDelete(true)
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-
-      </div>
-      
-
-      {/* TABLE */}
-      <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-sm">
-
-          <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-            <tr>
-              <th className="px-6 py-4 text-left">Ingredient</th>
-              <th className="px-6 py-4 text-left">Stock</th>
-              <th className="px-6 py-4 text-left">Min Level</th>
-              <th className="px-6 py-4 text-left">Health</th>
-              <th className="px-6 py-4 text-left">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y">
-
-            {filtered.map(i => {
-              const status = getStatus(Number(i.current_stock), Number(i.min_stock))
-
-              return (
-                <tr key={i.id} className="hover:bg-gray-50 transition">
-
-                  <td className="px-6 py-4 font-medium">{i.name}</td>
-
-                  <td className="px-6 py-4">
-                    {i.current_stock} {i.unit}
-                  </td>
-
-                  <td className="px-6 py-4">
-                    {i.min_stock} {i.unit}
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      status === 'good'
-                        ? 'bg-green-100 text-green-600'
-                        : status === 'low'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-red-100 text-red-600'
-                    }`}>
-                      {status === 'good'
-                        ? 'Healthy'
-                        : status === 'low'
-                        ? 'Low Stock'
-                        : 'Out of Stock'}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4 flex gap-4">
-                    <button
-                      onClick={() => {
-                        setSelected(i)
-                        setShowEdit(true)
-                      }}
-                      className="text-gray-400 hover:text-purple-600 transition"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setSelected(i)
-                        setShowDelete(true)
-                      }}
-                      className="text-gray-400 hover:text-red-600 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-
-                </tr>
-              )
-            })}
-
-          </tbody>
-
-        </table>
-      </div>
+      </section>
 
       {/* MODALS */}
       {showAdd && (
@@ -304,11 +353,11 @@ const calculateValuation = (stock: number) => {
 
 export default Inventory
 
-const Card = ({ title, value, icon }: any) => (
-  <div className="bg-white p-5 rounded-xl border shadow-sm flex justify-between items-center">
+const Card = ({ title, value, icon }: { title: string; value: string | number; icon: JSX.Element }) => (
+  <div className="rounded-2xl border border-violet-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)] p-5 shadow-[0_10px_22px_rgba(75,35,132,0.08)] flex justify-between items-center">
     <div>
-      <p className="text-xs text-gray-500">{title}</p>
-      <h3 className="text-xl font-semibold mt-1">{value}</h3>
+      <p className="text-[11px] uppercase tracking-[0.14em] text-violet-500">{title}</p>
+      <h3 className="text-2xl font-semibold mt-1 text-violet-950">{value}</h3>
     </div>
     {icon}
   </div>
@@ -316,24 +365,34 @@ const Card = ({ title, value, icon }: any) => (
 
 /* ================= MODALS ================= */
 
-const Modal = ({ title, ingredient, onClose, onSave }: any) => (
+const Modal = ({
+  title,
+  ingredient,
+  onClose,
+  onSave,
+}: {
+  title: string;
+  ingredient?: Ingredient;
+  onClose: () => void;
+  onSave: () => void;
+}) => (
   <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-    <div className="bg-white w-[480px] rounded-xl p-6 space-y-5 shadow-xl border">
+    <div className="bg-white w-[520px] rounded-2xl p-6 space-y-5 shadow-2xl border border-violet-200">
 
-      <h2 className="text-lg font-semibold">{title}</h2>
+      <h2 className="text-lg font-semibold text-violet-950">{title}</h2>
 
       <input
         id={ingredient ? 'editName' : 'addName'}
         defaultValue={ingredient?.name}
         placeholder="Name"
-        className="w-full px-4 py-2 border rounded-lg"
+        className="w-full px-4 py-2.5 border border-violet-200 rounded-xl outline-none focus:border-violet-400"
       />
 
       <input
         id={ingredient ? 'editUnit' : 'addUnit'}
         defaultValue={ingredient?.unit}
         placeholder="Unit"
-        className="w-full px-4 py-2 border rounded-lg"
+        className="w-full px-4 py-2.5 border border-violet-200 rounded-xl outline-none focus:border-violet-400"
       />
 
       <input
@@ -341,7 +400,7 @@ const Modal = ({ title, ingredient, onClose, onSave }: any) => (
         defaultValue={ingredient?.current_stock}
         type="number"
         placeholder="Current Stock"
-        className="w-full px-4 py-2 border rounded-lg"
+        className="w-full px-4 py-2.5 border border-violet-200 rounded-xl outline-none focus:border-violet-400"
       />
 
       <input
@@ -349,17 +408,17 @@ const Modal = ({ title, ingredient, onClose, onSave }: any) => (
         defaultValue={ingredient?.min_stock}
         type="number"
         placeholder="Minimum Stock"
-        className="w-full px-4 py-2 border rounded-lg"
+        className="w-full px-4 py-2.5 border border-violet-200 rounded-xl outline-none focus:border-violet-400"
       />
 
       <div className="flex justify-end gap-4">
-        <button onClick={onClose} className="text-gray-500">
+        <button onClick={onClose} className="text-violet-500 hover:text-violet-700">
           Cancel
         </button>
 
         <button
           onClick={onSave}
-          className="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition"
+          className="bg-violet-600 text-white px-5 py-2 rounded-xl hover:bg-violet-700 transition"
         >
           Save
         </button>
@@ -369,24 +428,32 @@ const Modal = ({ title, ingredient, onClose, onSave }: any) => (
   </div>
 )
 
-const DeleteModal = ({ name, onClose, onDelete }: any) => (
+const DeleteModal = ({
+  name,
+  onClose,
+  onDelete,
+}: {
+  name: string;
+  onClose: () => void;
+  onDelete: () => void;
+}) => (
   <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-    <div className="bg-white w-[400px] rounded-xl p-6 space-y-5 shadow-xl border">
+    <div className="bg-white w-[420px] rounded-2xl p-6 space-y-5 shadow-2xl border border-violet-200">
 
-      <h2 className="text-lg font-semibold text-red-600">Delete Ingredient</h2>
+      <h2 className="text-lg font-semibold text-rose-600">Delete Ingredient</h2>
 
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-violet-600/75">
         Are you sure you want to delete <strong>{name}</strong>?
       </p>
 
       <div className="flex justify-end gap-4">
-        <button onClick={onClose} className="text-gray-500">
+        <button onClick={onClose} className="text-violet-500 hover:text-violet-700">
           Cancel
         </button>
 
         <button
           onClick={onDelete}
-          className="bg-red-500 text-white px-5 py-2 rounded-lg hover:bg-red-600 transition"
+          className="bg-rose-600 text-white px-5 py-2 rounded-xl hover:bg-rose-700 transition"
         >
           Delete
         </button>

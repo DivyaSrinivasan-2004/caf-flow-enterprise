@@ -10,10 +10,12 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import Invoices from "./pages/admin/Invoices";
 import Products from "./pages/admin/Products";
 import Customers from "./pages/admin/Customers";
-import Payments from "./pages/admin/Payments";
+import Vendors from "./pages/admin/Vendors";
+import StaffManagement from "./pages/admin/StaffManagement";
+import StaffProfile from "./pages/staff/Profile";
+import AdminProfile from "./pages/admin/Profile";
 import Reports from "./pages/admin/Reports";
 import Inventory from "./pages/admin/Inventory";
-import Settings from "./pages/admin/Settings";
 import StaffLayout from "./pages/staff/StaffLayout";
 import StaffDashboard from "./pages/staff/StaffDashboard";
 import POS from "./pages/staff/POS";
@@ -45,10 +47,13 @@ const AppRoutes = () => {
         <Route path="invoices" element={<Invoices />} />
         <Route path="products" element={<Products />} />
         <Route path="customers" element={<Customers />} />
-        <Route path="payments" element={<Payments />} />
+        <Route path="vendors" element={<Vendors />} />
         <Route path="reports" element={<Reports />} />
         <Route path="inventory" element={<Inventory />} />
-        <Route path="settings" element={<Settings />} />
+        <Route path="payments" element={<Navigate to="/admin/vendors" replace />} />
+        <Route path="settings" element={<Navigate to="/admin/vendors" replace />} />
+        <Route path="profile" element={<AdminProfile />} />
+        <Route path="staff" element={<StaffManagement />} />
       </Route>
 
       <Route path="/staff" element={<ProtectedRoute allowedRoles="staff"><StaffLayout /></ProtectedRoute>}>
@@ -58,6 +63,7 @@ const AppRoutes = () => {
         <Route path="kitchen" element={<Kitchen />} />
         <Route path="orders" element={<Orders />} />
         <Route path="shift" element={<Shift />} />
+        <Route path="profile" element={<StaffProfile />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

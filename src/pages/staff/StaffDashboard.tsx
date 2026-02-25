@@ -5,7 +5,6 @@ import StatusBadge from "@/components/StatusBadge";
 import {
   ArrowRight,
   CalendarDays,
-  ChevronDown,
   CircleDollarSign,
   CreditCard,
   Megaphone,
@@ -71,7 +70,6 @@ const quickActions = [
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
-  const [showDropdown, setShowDropdown] = useState(false);
   const [showTakeawayModal, setShowTakeawayModal] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
@@ -100,7 +98,13 @@ const StaffDashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:p-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(37,99,235,0.16),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(15,118,110,0.14),transparent_30%),linear-gradient(160deg,rgba(2,6,23,0.98),rgba(30,41,59,0.95))]" />
+        <div
+          className="absolute inset-0 bg-no-repeat bg-center bg-[length:100%_100%]"
+          style={{
+            backgroundImage:
+              "linear-gradient(160deg,rgba(2,6,23,0.46),rgba(30,41,59,0.42)), url('https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=2200&q=80')",
+          }}
+        />
         <div className="relative z-10">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -114,37 +118,19 @@ const StaffDashboard = () => {
               </p>
             </div>
 
-            <div className="relative">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowDropdown((prev) => !prev)}
+                onClick={() => navigate("/staff/tables")}
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-lg"
               >
-                Create Order
-                <ChevronDown className="h-4 w-4" />
+                Dine In
               </button>
-
-              {showDropdown && (
-                <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-                  <button
-                    onClick={() => {
-                      setShowDropdown(false);
-                      navigate("/staff/tables");
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-accent"
-                  >
-                    Dine In
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDropdown(false);
-                      setShowTakeawayModal(true);
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-accent"
-                  >
-                    Take Away
-                  </button>
-                </div>
-              )}
+              <button
+                onClick={() => setShowTakeawayModal(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-lg"
+              >
+                Take Away
+              </button>
             </div>
           </div>
 

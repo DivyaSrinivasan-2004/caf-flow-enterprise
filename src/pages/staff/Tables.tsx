@@ -1,337 +1,447 @@
-import { table } from "console";
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import TableMapView from '@/components/TableMapView';
+import TableDetailModal from '@/components/TableDetailModal';
+import AddTableModal from '@/components/AddTableModal';
+import TableBookingModal from '@/components/TableBookingModal';
+import { type TableData, type TableStatus } from '@/data/tables';
 
-interface Table {
-  id: string;
-  number: string;
-  capacity: number;
-  status: "AVAILABLE" | "OCCUPIED";
-}
+const BASE_URL = 'http://192.168.1.3:8000';
+const TABLES_LIST_ENDPOINT = '/api/tables/list/';
+const TABLES_CREATE_ENDPOINT = '/api/tables/create/';
+const TABLE_SESSION_CREATE_ENDPOINT = '/api/tables/session/create/';
+const TABLE_SESSION_ACTIVE_ENDPOINT = '/api/tables/session/active/';
 
-interface ActiveSession {
-  id: string;
-  table: {
-    id: string;
-    number: string;
+const mapApiStatus = (status?: string): TableStatus => {
+  const normalized = (status ?? '').toLowerCase();
+  if (
+    normalized === 'available' ||
+    normalized === 'occupied' ||
+    normalized === 'reserved' ||
+    normalized === 'cleaning' ||
+    normalized === 'disabled'
+  ) {
+    return normalized;
+  }
+  return 'available';
+};
+
+const parseTableNumber = (value: unknown, fallback: number): number => {
+  const raw = String(value ?? '');
+  const direct = Number(raw);
+  if (!Number.isNaN(direct) && Number.isFinite(direct)) return direct;
+
+  const digits = raw.replace(/\D/g, '');
+  const parsed = Number(digits);
+  if (!Number.isNaN(parsed) && Number.isFinite(parsed) && parsed > 0) return parsed;
+  return fallback;
+};
+
+const toArray = (value: any): any[] => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.results)) return value.results;
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+};
+
+const getSessionTableId = (session: any): string =>
+  String(session.table_id ?? session.table?.id ?? session.table ?? '');
+
+const getOrderIdFromTablePayload = (raw: any): string | null => {
+  const candidate =
+    raw.order_id ??
+    raw.orderId ??
+    raw.active_order_id ??
+    raw.current_order_id ??
+    raw.order?.id ??
+    raw.active_order?.id ??
+    raw.current_order?.id;
+  if (candidate === null || candidate === undefined || candidate === '') return null;
+  return String(candidate);
+};
+
+const getTokenNumberFromPayload = (raw: any): string | undefined => {
+  const candidate = raw.token_number ?? raw.tokenNumber ?? raw.session?.token_number ?? raw.active_session?.token_number;
+  if (candidate === null || candidate === undefined || candidate === '') return undefined;
+  return String(candidate);
+};
+
+const getSessionIdFromPayload = (raw: any): string | null => {
+  const candidate = raw.id ?? raw.session_id ?? raw.session?.id ?? raw.active_session?.id;
+  if (candidate === null || candidate === undefined || candidate === '') return null;
+  return String(candidate);
+};
+
+const mergeTableWithSession = (table: TableData, session?: any): TableData => {
+  if (!session) return table;
+
+  const startedAt = session.created_at ? new Date(session.created_at).getTime() : null;
+  const duration = startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 60000)) : table.duration;
+  const orderSource = session.active_order ?? session.current_order ?? session.order ?? null;
+  const orderId = orderSource?.id ?? session.order_id ?? session.active_order_id ?? session.current_order_id;
+  const itemsSource = orderSource?.items ?? session.order_items ?? [];
+  const items = Array.isArray(itemsSource)
+    ? itemsSource.map((item: any) => ({
+        name: String(item?.name ?? item?.item_name ?? 'Item'),
+        qty: Number(item?.qty ?? item?.quantity ?? 1),
+        price: Number(item?.price ?? item?.unit_price ?? 0),
+      }))
+    : [];
+  const rawProgress = Number(orderSource?.progress ?? session.order_progress ?? 0);
+  const progress = Math.max(0, Math.min(100, Number.isFinite(rawProgress) ? rawProgress : 0));
+  const rawTotal = Number(orderSource?.total_amount ?? orderSource?.total ?? session.order_total ?? 0);
+  const total = Number.isFinite(rawTotal) ? rawTotal : 0;
+
+  return {
+    ...table,
+    status: 'occupied',
+    guests: Number(session.guest_count ?? session.guests ?? session.party_size ?? table.guests),
+    tokenNumber: getTokenNumberFromPayload(session) ?? table.tokenNumber,
+    customerName: session.customer_name ?? table.customerName,
+    duration,
+    order: orderId
+      ? {
+          id: String(orderId),
+          items,
+          total,
+          progress,
+        }
+      : table.order,
   };
-  customer_name: string;
-  customer_phone: string;
-  token_number: string;
-}
+};
 
-const BASE_URL = "http://192.168.1.3:8000";
+const normalizeTable = (raw: any, index: number): TableData => {
+  const orderId = getOrderIdFromTablePayload(raw);
 
-const Tables = () => {
-  const [tables, setTables] = useState<Table[]>([]);
-  const [sessions, setSessions] = useState<ActiveSession[]>([]);
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  return {
+    // `/api/tables/list/` returns `order_id` for occupied tables.
+    // Seed the UI with that ID immediately; session endpoint can later enrich it.
+    order: orderId
+      ? {
+          id: orderId,
+          items: [],
+          total: Number(raw.order_total ?? 0),
+          progress: Number(raw.order_progress ?? 0),
+        }
+      : undefined,
+    id: String(raw.id ?? `table-${index + 1}`),
+    number: parseTableNumber(raw.number ?? raw.table_number, index + 1),
+    capacity: Number(raw.capacity ?? 2),
+    guests: Number(raw.guests ?? raw.current_guests ?? 0),
+    status: mapApiStatus(raw.status),
+    tokenNumber: getTokenNumberFromPayload(raw),
+    duration: Number(raw.duration ?? 0),
+    revenue: Number(raw.revenue ?? raw.total_revenue ?? 0),
+    customerName: raw.customer_name ?? raw.customer?.name ?? raw.customer ?? undefined,
+    notes: raw.notes ?? raw.floor ?? undefined,
+    experienceScore: Number(raw.experience_score ?? 0),
+    position: {
+      x: Number(raw.position?.x ?? ((index % 4) * 25 + 5)),
+      y: Number(raw.position?.y ?? (Math.floor(index / 4) * 30 + 5)),
+    },
+    shape: raw.shape === 'round' || raw.shape === 'square' || raw.shape === 'rect' ? raw.shape : 'square',
+  };
+};
 
+const Index = () => {
   const navigate = useNavigate();
-  const token = localStorage.getItem("access");
+  const [tables, setTables] = useState<TableData[]>([]);
+  const [selectedTable, setSelectedTable] = useState<TableData | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [isLoadingTables, setIsLoadingTables] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+
+  const loadTables = useCallback(async () => {
+    const token = localStorage.getItem('access');
+    if (!token) {
+      setTables([]);
+      setIsLoadingTables(false);
+      return;
+    }
+
+    try {
+      setIsLoadingTables(true);
+      const [tablesRes, sessionsRes] = await Promise.all([
+        fetch(`${BASE_URL}${TABLES_LIST_ENDPOINT}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${BASE_URL}${TABLE_SESSION_ACTIVE_ENDPOINT}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      if (!tablesRes.ok) throw new Error('Failed to fetch table list');
+      const tableJson = await tablesRes.json();
+      const normalized = toArray(tableJson).map((t, idx) => normalizeTable(t, idx));
+
+      if (sessionsRes.ok) {
+        const sessionsJson = await sessionsRes.json();
+        const sessions = toArray(sessionsJson);
+        const merged = normalized.map((table) => {
+          const match = sessions.find((s) => getSessionTableId(s) === table.id);
+          return mergeTableWithSession(table, match);
+        });
+        setTables(merged);
+        return;
+      }
+
+      setTables(normalized);
+    } catch (error) {
+      console.error('Tables API fetch failed:', error);
+      setTables([]);
+    } finally {
+      setIsLoadingTables(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadTables();
-    loadSessions();
-  }, []);
+  }, [loadTables]);
 
-  // ===============================
-  // LOAD TABLES
-  // ===============================
-  const loadTables = async () => {
+  const filtered = tables;
+
+  const handleTableClick = async (table: TableData) => {
+    if (table.status === 'available') {
+      setSelectedTable(table);
+      setBookingModalOpen(true);
+      return;
+    }
+
+    setSelectedTable(table);
+    setModalOpen(true);
+
+    const token = localStorage.getItem('access');
+    if (!token) return;
+
     try {
-      const res = await fetch(`${BASE_URL}/api/tables/list/`, {
+      const res = await fetch(`${BASE_URL}${TABLE_SESSION_ACTIVE_ENDPOINT}table/${table.id}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const session = Array.isArray(data) ? data[0] : data;
+      if (!session || (Array.isArray(data) && data.length === 0)) return;
+
+      setSelectedTable((prev) => (prev && prev.id === table.id ? mergeTableWithSession(prev, session) : prev));
+    } catch (error) {
+      console.error('Failed to fetch active table session:', error);
+    }
+  };
+
+  const handleStatusChange = (tableId: string, status: TableStatus) => {
+    setTables((prev) =>
+      prev.map((t) => {
+        if (t.id !== tableId) return t;
+        const reset = status === 'available' || status === 'cleaning' || status === 'disabled';
+        return {
+          ...t,
+          status,
+          guests: reset ? 0 : t.guests,
+          duration: reset ? 0 : t.duration,
+          order: reset ? undefined : t.order,
+          customerName: reset ? undefined : t.customerName,
+          revenue: reset ? 0 : t.revenue,
+          experienceScore: reset ? 0 : t.experienceScore,
+        };
+      })
+    );
+
+    const token = localStorage.getItem('access');
+    if (!token) return;
+
+    if (status === 'occupied') {
+      const tableToBook = tables.find((t) => t.id === tableId) ?? null;
+      setSelectedTable(tableToBook);
+      setModalOpen(false);
+      setBookingModalOpen(true);
+    }
+
+    // Update selected table too
+    setSelectedTable((prev) => {
+      if (!prev || prev.id !== tableId) return prev;
+      const reset = status === 'available' || status === 'cleaning' || status === 'disabled';
+      return {
+        ...prev,
+        status,
+        guests: reset ? 0 : prev.guests,
+        duration: reset ? 0 : prev.duration,
+        order: reset ? undefined : prev.order,
+        customerName: reset ? undefined : prev.customerName,
+        revenue: reset ? 0 : prev.revenue,
+        experienceScore: reset ? 0 : prev.experienceScore,
+      };
+    });
+  };
+
+  const summary = useMemo(() => {
+    const s = { available: 0, occupied: 0, reserved: 0, cleaning: 0, disabled: 0 };
+    tables.forEach((t) => s[t.status]++);
+    return s;
+  }, [tables]);
+
+  const handleAddTable = async (form: { number: string; floor: string; capacity: number }) => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    const token = localStorage.getItem('access');
+    if (!token) {
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+      const payload = {
+        number: form.number,
+        floor: form.floor,
+        capacity: form.capacity,
+      };
+
+      const res = await fetch(`${BASE_URL}${TABLES_CREATE_ENDPOINT}`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Create table failed');
+
+      await loadTables();
+      setAddModalOpen(false);
+    } catch (error) {
+      console.error('Failed to create table in API:', error);
+      window.alert('Failed to create table');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateSession = async (payload: { table: string; customer_name: string; customer_phone: string; guest_count: number }) => {
+    const token = localStorage.getItem('access');
+    if (!token || isBooking) return;
+
+    setIsBooking(true);
+    try {
+      const res = await fetch(`${BASE_URL}${TABLE_SESSION_CREATE_ENDPOINT}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        console.error("Failed to load tables:", res.status);
-        return;
+        const errorBody = await res.json().catch(() => ({}));
+        throw new Error(errorBody?.detail || 'Failed to create table session');
       }
 
-      const data = await res.json();
-      setTables(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Tables error:", err);
+      const session = await res.json();
+      const orderId = getOrderIdFromTablePayload(session);
+      const sessionId = getSessionIdFromPayload(session);
+      setBookingModalOpen(false);
+      await loadTables();
+      const params = new URLSearchParams({
+        table_number: String(session?.table_number ?? ''),
+        token_number: String(session?.token_number ?? ''),
+        customer_name: String(session?.customer_name ?? ''),
+      });
+      if (sessionId) params.set('session', sessionId);
+      if (orderId) params.set('order', orderId);
+      navigate(`/staff/pos?${params.toString()}`);
+    } catch (error: any) {
+      console.error('Failed to create table session:', error);
+      window.alert(error?.message || 'Unable to create table session');
+    } finally {
+      setIsBooking(false);
     }
   };
 
-  // ===============================
-  // LOAD ACTIVE SESSIONS
-  // ===============================
-  const loadSessions = async () => {
-    try {
-      const res = await fetch(
-        `${BASE_URL}/api/tables/session/active/`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!res.ok) {
-        console.error("Failed to load sessions:", res.status);
-        return;
-      }
-
-      const data = await res.json();
-      setSessions(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Sessions error:", err);
-    }
-  };
-
-  // ===============================
-  // GET SESSION FOR TABLE
-  // ===============================
-  const getSessionForTable = (tableId: string) => {
-    return sessions.find((s) => s.table.id === tableId);
-  };
-
-  // ===============================
-  // CREATE SESSION + ORDER
-  // ===============================
-  const handleCreateSession = async () => {
-    if (!selectedTable) return;
-
-    try {
-      // -------------------------
-      // 1️⃣ CREATE SESSION
-      // -------------------------
-      const sessionRes = await fetch(
-        `${BASE_URL}/api/tables/session/create/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            table: selectedTable.id,
-            customer_name: name,
-            customer_phone: phone,
-          }),
-        }
-      );
-
-      if (!sessionRes.ok) {
-        const err = await sessionRes.json();
-        console.error(err);
-        alert("Failed to create table session");
-        return;
-      }
-
-      const sessionData: ActiveSession = await sessionRes.json();
-
-      // -------------------------
-      // 2️⃣ CREATE ORDER (WITH SESSION)
-      // -------------------------
-      const orderRes = await fetch(
-        `${BASE_URL}/api/orders/create/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            order_type: "DINE_IN",
-            table: selectedTable.id,
-            session: sessionData.id, // ✅ IMPORTANT
-            items: [],
-          }),
-        }
-      );
-
-      if (!orderRes.ok) {
-        const err = await orderRes.json();
-        console.error(err);
-        alert("Failed to create order");
-        return;
-      }
-
-      const orderData = await orderRes.json();
-
-      // -------------------------
-      // 3️⃣ REDIRECT TO POS
-      // -------------------------
-      navigate(
-  `/staff/pos?order=${orderData.id}` +
-  `&type=DINE_IN` +
-  `&table=${selectedTable.number}` +
-  `&token=${sessionData.token_number}` +
-  `&customer=${name}`
-);
-
-    } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
-    }
-  };
-
-  // ===============================
-  // UI
-  // ===============================
   return (
-    <div className="p-8 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-warning/10">
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Table Management
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Monitor live table activity
-          </p>
-        </div>
+      <div className="flex">
+        {/* Main content */}
+        <main className="relative flex-1 space-y-5 overflow-x-hidden p-6">
+          <div className="pointer-events-none absolute -top-20 -right-24 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-warning/15 blur-3xl" />
 
-        <div className="flex gap-4">
-          <div className="px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
-            {tables.filter(t => t.status === "AVAILABLE").length} Available
-          </div>
-          <div className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium">
-            {tables.filter(t => t.status === "OCCUPIED").length} Occupied
-          </div>
-        </div>
-      </div>
-
-      {/* TABLE GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {tables.map((table) => {
-
-          const activeSession = getSessionForTable(table.id);
-          const isAvailable = table.status === "AVAILABLE";
-
-          return (
-            <div
-              key={table.id}
-              onClick={() => {
-                if (isAvailable) setSelectedTable(table);
-              }}
-              className={`relative p-6 rounded-2xl border cursor-pointer transition-all duration-200
-                ${isAvailable
-                  ? "bg-white hover:shadow-lg hover:-translate-y-1 border-green-200"
-                  : "bg-orange-50 border-orange-200"}
-              `}
-            >
-
-              {/* STATUS BADGE */}
-              <div
-                className={`absolute top-4 right-4 text-xs px-3 py-1 rounded-full font-medium
-                  ${isAvailable
-                    ? "bg-green-100 text-green-600"
-                    : "bg-orange-100 text-orange-600"}
-                `}
-              >
-                {isAvailable ? "Available" : "Occupied"}
-              </div>
-
-              {/* TABLE INFO */}
-              <h2 className="text-lg font-semibold mb-2">
-                {table.number}
-              </h2>
-
-              <p className="text-sm text-muted-foreground mb-4">
-                {table.capacity} seats
-              </p>
-
-              {!isAvailable && activeSession && (
-                <div className="mt-3 text-sm">
-                  <p className="font-medium text-orange-700">
-                    {activeSession.customer_name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {activeSession.customer_phone}
-                  </p>
+          {/* Status summary */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative flex items-center justify-between gap-4 rounded-2xl border border-primary/30 bg-gradient-to-r from-white/85 via-primary/10 to-white/85 p-4 shadow-sm"
+          >
+            <div className="flex items-center gap-6">
+              {[
+                { label: 'Available', count: summary.available, dot: 'bg-primary' },
+                { label: 'Occupied', count: summary.occupied, dot: 'bg-warning' },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center gap-2 rounded-full border border-primary/15 bg-white/70 px-3 py-1.5">
+                  <span className={`h-3 w-3 rounded-full ${s.dot}`} />
+                  <span className="text-sm font-medium text-foreground">{s.count}</span>
+                  <span className="text-xs text-muted-foreground">{s.label}</span>
                 </div>
-              )}
-
+              ))}
             </div>
-          );
-        })}
+
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 border border-primary/30 bg-gradient-to-r from-primary to-primary/80 text-xs text-primary-foreground shadow-sm hover:from-primary/90 hover:to-primary"
+              onClick={() => setAddModalOpen(true)}
+              disabled={isSaving}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Table
+            </Button>
+          </motion.div>
+
+          {/* Map */}
+          {isLoadingTables ? (
+            <div className="rounded-xl border border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+              Loading tables...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-xl border border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+              No tables found.
+            </div>
+          ) : (
+            <TableMapView tables={filtered} onTableClick={handleTableClick} />
+          )}
+        </main>
       </div>
 
-      {/* CUSTOMER MODAL */}
-      {selectedTable && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <TableDetailModal
+        table={selectedTable}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onStatusChange={handleStatusChange}
+      />
 
-          <div className="bg-white w-[420px] rounded-2xl shadow-2xl p-8">
+      <AddTableModal
+        open={addModalOpen}
+        onOpenChange={setAddModalOpen}
+        isSaving={isSaving}
+        defaultNumber={`A${(Math.max(...tables.map((t) => t.number), 0) || 0) + 1}`}
+        onSubmit={handleAddTable}
+      />
 
-            {/* HEADER */}
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">
-                Start New Order
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Table {selectedTable.number}
-              </p>
-            </div>
-
-            {/* FORM */}
-            <div className="space-y-5">
-
-              {/* NAME */}
-              <div>
-                <label className="text-sm font-medium">
-                  Customer Name
-                </label>
-
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border"
-                />
-              </div>
-
-              {/* PHONE */}
-              <div>
-                <label className="text-sm font-medium">
-                  Phone Number
-                </label>
-
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border"
-                />
-              </div>
-
-            </div>
-
-            {/* ACTIONS */}
-            <div className="flex justify-end gap-4 mt-8">
-
-              <button
-                onClick={() => setSelectedTable(null)}
-                className="px-4 py-2 text-sm text-gray-500"
-              >
-                Cancel
-              </button>
-
-              <button
-                disabled={!name || !phone}
-                onClick={handleCreateSession}
-                className="px-6 py-3 rounded-xl text-sm text-white bg-indigo-600"
-              >
-                Start Order
-              </button>
-
-            </div>
-
-          </div>
-        </div>
-      )}
-
+      <TableBookingModal
+        open={bookingModalOpen}
+        table={selectedTable}
+        isSubmitting={isBooking}
+        onOpenChange={setBookingModalOpen}
+        onSubmit={handleCreateSession}
+      />
     </div>
   );
 };
 
-export default Tables;
+export default Index;
